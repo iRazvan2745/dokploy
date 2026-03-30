@@ -32,7 +32,7 @@ export const ShowConvertedCompose = ({ composeId }: Props) => {
 		},
 	);
 
-	const { mutateAsync, isLoading } = api.compose.fetchSourceType.useMutation();
+	const { mutateAsync, isPending } = api.compose.fetchSourceType.useMutation();
 
 	useEffect(() => {
 		if (isOpen) {
@@ -47,7 +47,7 @@ export const ShowConvertedCompose = ({ composeId }: Props) => {
 	return (
 		<Dialog open={isOpen} onOpenChange={setIsOpen}>
 			<DialogTrigger asChild>
-				<Button className="max-lg:w-full" variant="outline">
+				<Button className="max-lg:w-full bg-popover rounded-t-none rounded-r-none border-t-0 border-r-0 active:hover:scale-[1]" variant="outline">
 					<Puzzle className="h-4 w-4" />
 					Preview Compose
 				</Button>
@@ -66,7 +66,7 @@ export const ShowConvertedCompose = ({ composeId }: Props) => {
 					Preview your docker-compose file with added domains. Note: At least
 					one domain must be specified for this conversion to take effect.
 				</AlertBlock>
-				{isLoading ? (
+				{isPending ? (
 					<div className="flex flex-row items-center justify-center min-h-[25rem] border p-4 rounded-md">
 						<Loader2 className="h-8 w-8 text-muted-foreground mb-2 animate-spin" />
 					</div>
@@ -82,7 +82,7 @@ export const ShowConvertedCompose = ({ composeId }: Props) => {
 						<div className="flex flex-row gap-2 justify-end my-4">
 							<Button
 								variant="secondary"
-								isLoading={isLoading}
+								isLoading={isPending}
 								onClick={() => {
 									mutateAsync({ composeId })
 										.then(() => {

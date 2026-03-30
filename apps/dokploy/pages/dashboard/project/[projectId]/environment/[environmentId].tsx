@@ -1,4 +1,4 @@
-import type { findProjectById } from "@dokploy/server";
+import type { findEnvironmentById } from "@dokploy/server";
 import { validateRequest } from "@dokploy/server/lib/auth";
 import { createServerSideHelpers } from "@trpc/react-query/server";
 import {
@@ -23,7 +23,7 @@ import type {
 	InferGetServerSidePropsType,
 } from "next";
 import Head from "next/head";
-import { useRouter } from "next/router";
+import Link from "next/link";
 import { type ReactElement, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import superjson from "superjson";
@@ -37,6 +37,7 @@ import { DuplicateProject } from "@/components/dashboard/project/duplicate-proje
 import { EnvironmentVariables } from "@/components/dashboard/project/environment-variables";
 import { ProjectEnvironment } from "@/components/dashboard/projects/project-environment";
 import {
+	LibsqlIcon,
 	MariadbIcon,
 	MongodbIcon,
 	MysqlIcon,
@@ -44,8 +45,8 @@ import {
 	RedisIcon,
 } from "@/components/icons/data-tools-icons";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
+import { AdvanceBreadcrumb } from "@/components/shared/advance-breadcrumb";
 import { AlertBlock } from "@/components/shared/alert-block";
-import { BreadcrumbSidebar } from "@/components/shared/breadcrumb-sidebar";
 import { DateTooltip } from "@/components/shared/date-tooltip";
 import { DialogAction } from "@/components/shared/dialog-action";
 import { FocusShortcutInput } from "@/components/shared/focus-shortcut-input";
@@ -67,6 +68,14 @@ import {
 	CommandInput,
 	CommandItem,
 } from "@/components/ui/command";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuLabel,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
 	Dialog,
 	DialogContent,
@@ -98,10 +107,11 @@ import {
 import { cn } from "@/lib/utils";
 import { appRouter } from "@/server/api/root";
 import { api } from "@/utils/api";
+import { useWhitelabeling } from "@/utils/hooks/use-whitelabeling";
 
 export type Services = {
-	appName: string;
 	serverId?: string | null;
+	serverName?: string | null;
 	name: string;
 	type:
 		| "mariadb"
@@ -110,15 +120,16 @@ export type Services = {
 		| "mysql"
 		| "mongo"
 		| "redis"
-		| "compose";
+		| "compose"
+		| "libsql";
 	description?: string | null;
 	id: string;
 	createdAt: string;
 	status?: "idle" | "running" | "done" | "error";
+	lastDeployDate?: Date | null;
 };
 
-type Project = Awaited<ReturnType<typeof findProjectById>>;
-type Environment = Project["environments"][0];
+type Environment = Awaited<ReturnType<typeof findEnvironmentById>>;
 
 export const extractServicesFromEnvironment = (
 	environment: Environment | undefined,
@@ -128,20 +139,37 @@ export const extractServicesFromEnvironment = (
 	const allServices: Services[] = [];
 
 	const applications: Services[] =
-		environment.applications?.map((item) => ({
-			appName: item.appName,
-			name: item.name,
-			type: "application",
-			id: item.applicationId,
-			createdAt: item.createdAt,
-			status: item.applicationStatus,
-			description: item.description,
-			serverId: item.serverId,
-		})) || [];
+		environment.applications?.map((item) => {
+			// Get the most recent deployment date
+			let lastDeployDate: Date | null = null;
+			const deployments = (item as any).deployments;
+			if (deployments && deployments.length > 0) {
+				for (const deployment of deployments) {
+					const deployDate = new Date(
+						deployment.finishedAt ||
+							deployment.startedAt ||
+							deployment.createdAt,
+					);
+					if (!lastDeployDate || deployDate > lastDeployDate) {
+						lastDeployDate = deployDate;
+					}
+				}
+			}
+			return {
+				name: item.name,
+				type: "application",
+				id: item.applicationId,
+				createdAt: item.createdAt,
+				status: item.applicationStatus,
+				description: item.description,
+				serverId: item.serverId,
+				serverName: item?.server?.name || null,
+				lastDeployDate,
+			};
+		}) || [];
 
 	const mariadb: Services[] =
 		environment.mariadb?.map((item) => ({
-			appName: item.appName,
 			name: item.name,
 			type: "mariadb",
 			id: item.mariadbId,
@@ -149,11 +177,11 @@ export const extractServicesFromEnvironment = (
 			status: item.applicationStatus,
 			description: item.description,
 			serverId: item.serverId,
+			serverName: item?.server?.name || null,
 		})) || [];
 
 	const postgres: Services[] =
 		environment.postgres?.map((item) => ({
-			appName: item.appName,
 			name: item.name,
 			type: "postgres",
 			id: item.postgresId,
@@ -161,11 +189,11 @@ export const extractServicesFromEnvironment = (
 			status: item.applicationStatus,
 			description: item.description,
 			serverId: item.serverId,
+			serverName: item?.server?.name || null,
 		})) || [];
 
 	const mongo: Services[] =
 		environment.mongo?.map((item) => ({
-			appName: item.appName,
 			name: item.name,
 			type: "mongo",
 			id: item.mongoId,
@@ -173,11 +201,11 @@ export const extractServicesFromEnvironment = (
 			status: item.applicationStatus,
 			description: item.description,
 			serverId: item.serverId,
+			serverName: item?.server?.name || null,
 		})) || [];
 
 	const redis: Services[] =
 		environment.redis?.map((item) => ({
-			appName: item.appName,
 			name: item.name,
 			type: "redis",
 			id: item.redisId,
@@ -185,11 +213,11 @@ export const extractServicesFromEnvironment = (
 			status: item.applicationStatus,
 			description: item.description,
 			serverId: item.serverId,
+			serverName: item?.server?.name || null,
 		})) || [];
 
 	const mysql: Services[] =
 		environment.mysql?.map((item) => ({
-			appName: item.appName,
 			name: item.name,
 			type: "mysql",
 			id: item.mysqlId,
@@ -197,28 +225,60 @@ export const extractServicesFromEnvironment = (
 			status: item.applicationStatus,
 			description: item.description,
 			serverId: item.serverId,
+			serverName: item?.server?.name || null,
 		})) || [];
 
 	const compose: Services[] =
-		environment.compose?.map((item) => ({
-			appName: item.appName,
+		environment.compose?.map((item) => {
+			// Get the most recent deployment date
+			let lastDeployDate: Date | null = null;
+			const deployments = (item as any).deployments;
+			if (deployments && deployments.length > 0) {
+				for (const deployment of deployments) {
+					const deployDate = new Date(
+						deployment.finishedAt ||
+							deployment.startedAt ||
+							deployment.createdAt,
+					);
+					if (!lastDeployDate || deployDate > lastDeployDate) {
+						lastDeployDate = deployDate;
+					}
+				}
+			}
+			return {
+				name: item.name,
+				type: "compose",
+				id: item.composeId,
+				createdAt: item.createdAt,
+				status: item.composeStatus,
+				description: item.description,
+				serverId: item.serverId,
+				serverName: item?.server?.name || null,
+				lastDeployDate,
+			};
+		}) || [];
+
+	const libsql: Services[] =
+		environment.libsql?.map((item) => ({
 			name: item.name,
-			type: "compose",
-			id: item.composeId,
+			type: "libsql",
+			id: item.libsqlId,
 			createdAt: item.createdAt,
-			status: item.composeStatus,
+			status: item.applicationStatus,
 			description: item.description,
 			serverId: item.serverId,
+			serverName: item?.server?.name || null,
 		})) || [];
 
 	allServices.push(
 		...applications,
+		...compose,
+		...libsql,
 		...mysql,
 		...redis,
 		...mongo,
 		...postgres,
 		...mariadb,
-		...compose,
 	);
 
 	allServices.sort((a, b) => {
@@ -234,12 +294,23 @@ const EnvironmentPage = (
 	const utils = api.useUtils();
 	const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
 	const { projectId, environmentId } = props;
-	const { data: auth } = api.user.get.useQuery();
+	// const { data: auth } = api.user.get.useQuery();
+	const { data: permissions } = api.user.getPermissions.useQuery();
+
+	const { data: environments } = api.environment.byProjectId.useQuery({
+		projectId: projectId,
+	});
+	// const environmentDropdownItems =
+	// 	environments?.map((env) => ({
+	// 		name: env.name,
+	// 		href: `/dashboard/project/${projectId}/environment/${env.environmentId}`,
+	// 	})) || [];
+
 	const [sortBy, setSortBy] = useState<string>(() => {
 		if (typeof window !== "undefined") {
-			return localStorage.getItem("servicesSort") || "createdAt-desc";
+			return localStorage.getItem("servicesSort") || "lastDeploy-desc";
 		}
-		return "createdAt-desc";
+		return "lastDeploy-desc";
 	});
 
 	useEffect(() => {
@@ -261,10 +332,45 @@ const EnvironmentPage = (
 					comparison =
 						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 					break;
+				case "lastDeploy": {
+					const aLastDeploy = a.lastDeployDate;
+					const bLastDeploy = b.lastDeployDate;
+
+					if (direction === "desc") {
+						// For "desc" (newest first): services with deployments first, then those without
+						if (!aLastDeploy && !bLastDeploy) {
+							comparison = 0;
+						} else if (!aLastDeploy) {
+							comparison = 1; // a (no deploy) goes after b (has deploy)
+						} else if (!bLastDeploy) {
+							comparison = -1; // a (has deploy) goes before b (no deploy)
+						} else {
+							// Both have deployments: newest first (negative if a is newer)
+							comparison = bLastDeploy.getTime() - aLastDeploy.getTime();
+						}
+					} else {
+						// For "asc" (oldest first): services with deployments first, then those without
+						if (!aLastDeploy && !bLastDeploy) {
+							comparison = 0;
+						} else if (!aLastDeploy) {
+							comparison = 1; // a (no deploy) goes after b (has deploy)
+						} else if (!bLastDeploy) {
+							comparison = -1; // a (has deploy) goes before b (no deploy)
+						} else {
+							// Both have deployments: oldest first
+							comparison = aLastDeploy.getTime() - bLastDeploy.getTime();
+						}
+					}
+					break;
+				}
 				default:
 					comparison = 0;
 			}
-			return direction === "asc" ? comparison : -comparison;
+			// For other fields, apply direction normally
+			if (field !== "lastDeploy") {
+				return direction === "asc" ? comparison : -comparison;
+			}
+			return comparison;
 		});
 	};
 
@@ -277,7 +383,6 @@ const EnvironmentPage = (
 		environmentId,
 	});
 	const { data: allProjects } = api.project.all.useQuery();
-	const router = useRouter();
 
 	const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
 	const [selectedTargetProject, setSelectedTargetProject] =
@@ -290,6 +395,8 @@ const EnvironmentPage = (
 			{ projectId: selectedTargetProject },
 			{ enabled: !!selectedTargetProject },
 		);
+	const { config: whitelabeling } = useWhitelabeling();
+	const appName = whitelabeling?.appName || "Dokploy";
 
 	const emptyServices =
 		!currentEnvironment ||
@@ -299,7 +406,8 @@ const EnvironmentPage = (
 			(currentEnvironment.postgres?.length || 0) === 0 &&
 			(currentEnvironment.redis?.length || 0) === 0 &&
 			(currentEnvironment.applications?.length || 0) === 0 &&
-			(currentEnvironment.compose?.length || 0) === 0);
+			(currentEnvironment.compose?.length || 0) === 0 &&
+			(currentEnvironment.libsql?.length || 0) === 0);
 
 	const applications = extractServicesFromEnvironment(currentEnvironment);
 
@@ -312,6 +420,7 @@ const EnvironmentPage = (
 		{ value: "mysql", label: "MySQL", icon: MysqlIcon },
 		{ value: "redis", label: "Redis", icon: RedisIcon },
 		{ value: "compose", label: "Compose", icon: CircuitBoard },
+		{ value: "libsql", label: "Libsql", icon: LibsqlIcon },
 	];
 
 	const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -320,6 +429,13 @@ const EnvironmentPage = (
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 	const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 	const [deleteVolumes, setDeleteVolumes] = useState(false);
+	const [singleDeleteVolumes, setSingleDeleteVolumes] = useState(false);
+	const [composeDeleteDialogServiceId, setComposeDeleteDialogServiceId] =
+		useState<string | null>(null);
+	const [selectedServerId, setSelectedServerId] = useState<string>("all");
+	const [serviceActionLoading, setServiceActionLoading] = useState<
+		Record<string, string>
+	>({});
 
 	const handleSelectAll = () => {
 		if (selectedServices.length === filteredServices.length) {
@@ -330,6 +446,7 @@ const EnvironmentPage = (
 	};
 
 	const handleServiceSelect = (serviceId: string, event: React.MouseEvent) => {
+		event.preventDefault();
 		event.stopPropagation();
 		setSelectedServices((prev) =>
 			prev.includes(serviceId)
@@ -394,6 +511,199 @@ const EnvironmentPage = (
 		deploy: api.mongo.deploy.useMutation(),
 	};
 
+	const libsqlActions = {
+		start: api.libsql.start.useMutation(),
+		stop: api.libsql.stop.useMutation(),
+		move: api.libsql.move.useMutation(),
+		delete: api.libsql.remove.useMutation(),
+		deploy: api.libsql.deploy.useMutation(),
+	};
+
+	const setServiceActionState = (serviceId: string, action: string | null) => {
+		setServiceActionLoading((prev) => {
+			if (!action) {
+				const { [serviceId]: _, ...rest } = prev;
+				return rest;
+			}
+			return {
+				...prev,
+				[serviceId]: action,
+			};
+		});
+	};
+
+	const performServiceStart = async (service: Services) => {
+		switch (service.type) {
+			case "application":
+				await applicationActions.start.mutateAsync({
+					applicationId: service.id,
+				});
+				return;
+			case "compose":
+				await composeActions.start.mutateAsync({ composeId: service.id });
+				return;
+			case "postgres":
+				await postgresActions.start.mutateAsync({ postgresId: service.id });
+				return;
+			case "mysql":
+				await mysqlActions.start.mutateAsync({ mysqlId: service.id });
+				return;
+			case "mariadb":
+				await mariadbActions.start.mutateAsync({ mariadbId: service.id });
+				return;
+			case "redis":
+				await redisActions.start.mutateAsync({ redisId: service.id });
+				return;
+			case "mongo":
+				await mongoActions.start.mutateAsync({ mongoId: service.id });
+				return;
+			case "libsql":
+				await libsqlActions.start.mutateAsync({ libsqlId: service.id });
+				return;
+		}
+	};
+
+	const performServiceStop = async (service: Services) => {
+		switch (service.type) {
+			case "application":
+				await applicationActions.stop.mutateAsync({
+					applicationId: service.id,
+				});
+				return;
+			case "compose":
+				await composeActions.stop.mutateAsync({ composeId: service.id });
+				return;
+			case "postgres":
+				await postgresActions.stop.mutateAsync({ postgresId: service.id });
+				return;
+			case "mysql":
+				await mysqlActions.stop.mutateAsync({ mysqlId: service.id });
+				return;
+			case "mariadb":
+				await mariadbActions.stop.mutateAsync({ mariadbId: service.id });
+				return;
+			case "redis":
+				await redisActions.stop.mutateAsync({ redisId: service.id });
+				return;
+			case "mongo":
+				await mongoActions.stop.mutateAsync({ mongoId: service.id });
+				return;
+			case "libsql":
+				await libsqlActions.stop.mutateAsync({ libsqlId: service.id });
+				return;
+		}
+	};
+
+	const performServiceDeploy = async (service: Services) => {
+		switch (service.type) {
+			case "application":
+				await applicationActions.deploy.mutateAsync({
+					applicationId: service.id,
+				});
+				return;
+			case "compose":
+				await composeActions.deploy.mutateAsync({ composeId: service.id });
+				return;
+			case "postgres":
+				await postgresActions.deploy.mutateAsync({ postgresId: service.id });
+				return;
+			case "mysql":
+				await mysqlActions.deploy.mutateAsync({ mysqlId: service.id });
+				return;
+			case "mariadb":
+				await mariadbActions.deploy.mutateAsync({ mariadbId: service.id });
+				return;
+			case "redis":
+				await redisActions.deploy.mutateAsync({ redisId: service.id });
+				return;
+			case "mongo":
+				await mongoActions.deploy.mutateAsync({ mongoId: service.id });
+				return;
+			case "libsql":
+				await libsqlActions.deploy.mutateAsync({ libsqlId: service.id });
+				return;
+		}
+	};
+
+	const performServiceDelete = async (
+		service: Services,
+		deleteVolumes = false,
+	) => {
+		switch (service.type) {
+			case "application":
+				await applicationActions.delete.mutateAsync({
+					applicationId: service.id,
+				});
+				return;
+			case "compose":
+				await composeActions.delete.mutateAsync({
+					composeId: service.id,
+					deleteVolumes,
+				});
+				return;
+			case "postgres":
+				await postgresActions.delete.mutateAsync({ postgresId: service.id });
+				return;
+			case "mysql":
+				await mysqlActions.delete.mutateAsync({ mysqlId: service.id });
+				return;
+			case "mariadb":
+				await mariadbActions.delete.mutateAsync({ mariadbId: service.id });
+				return;
+			case "redis":
+				await redisActions.delete.mutateAsync({ redisId: service.id });
+				return;
+			case "mongo":
+				await mongoActions.delete.mutateAsync({ mongoId: service.id });
+				return;
+			case "libsql":
+				await libsqlActions.delete.mutateAsync({ libsqlId: service.id });
+				return;
+		}
+	};
+
+	const handleSingleServiceAction = async (
+		service: Services,
+		action: "start" | "stop" | "deploy" | "delete",
+		options?: { deleteVolumes?: boolean },
+	) => {
+		try {
+			setServiceActionState(service.id, action);
+			switch (action) {
+				case "start":
+					await performServiceStart(service);
+					toast.success(`${service.name} started successfully`);
+					break;
+				case "stop":
+					await performServiceStop(service);
+					toast.success(`${service.name} stopped successfully`);
+					break;
+				case "deploy":
+					await performServiceDeploy(service);
+					toast.success(`${service.name} queued for deployment`);
+					break;
+				case "delete":
+					await performServiceDelete(service, options?.deleteVolumes);
+					toast.success(`${service.name} deleted successfully`);
+					break;
+			}
+			await utils.environment.one.invalidate({ environmentId });
+			refetch();
+		} catch (error) {
+			const actionLabel =
+				action === "deploy"
+					? "deploying"
+					: action === "delete"
+						? "deleting"
+						: `${action}${action === "stop" ? "ping" : "ing"}`;
+			toast.error(
+				`Error ${actionLabel} ${service.name}${error instanceof Error && error.message ? `: ${error.message}` : ""}`,
+			);
+		} finally {
+			setServiceActionState(service.id, null);
+		}
+	};
+
 	const handleBulkStart = async () => {
 		let success = 0;
 		setIsBulkActionLoading(true);
@@ -401,32 +711,7 @@ const EnvironmentPage = (
 			try {
 				const service = filteredServices.find((s) => s.id === serviceId);
 				if (!service) continue;
-
-				switch (service.type) {
-					case "application":
-						await applicationActions.start.mutateAsync({
-							applicationId: serviceId,
-						});
-						break;
-					case "compose":
-						await composeActions.start.mutateAsync({ composeId: serviceId });
-						break;
-					case "postgres":
-						await postgresActions.start.mutateAsync({ postgresId: serviceId });
-						break;
-					case "mysql":
-						await mysqlActions.start.mutateAsync({ mysqlId: serviceId });
-						break;
-					case "mariadb":
-						await mariadbActions.start.mutateAsync({ mariadbId: serviceId });
-						break;
-					case "redis":
-						await redisActions.start.mutateAsync({ redisId: serviceId });
-						break;
-					case "mongo":
-						await mongoActions.start.mutateAsync({ mongoId: serviceId });
-						break;
-				}
+				await performServiceStart(service);
 				success++;
 			} catch {
 				toast.error(`Error starting service ${serviceId}`);
@@ -448,32 +733,7 @@ const EnvironmentPage = (
 			try {
 				const service = filteredServices.find((s) => s.id === serviceId);
 				if (!service) continue;
-
-				switch (service.type) {
-					case "application":
-						await applicationActions.stop.mutateAsync({
-							applicationId: serviceId,
-						});
-						break;
-					case "compose":
-						await composeActions.stop.mutateAsync({ composeId: serviceId });
-						break;
-					case "postgres":
-						await postgresActions.stop.mutateAsync({ postgresId: serviceId });
-						break;
-					case "mysql":
-						await mysqlActions.stop.mutateAsync({ mysqlId: serviceId });
-						break;
-					case "mariadb":
-						await mariadbActions.stop.mutateAsync({ mariadbId: serviceId });
-						break;
-					case "redis":
-						await redisActions.stop.mutateAsync({ redisId: serviceId });
-						break;
-					case "mongo":
-						await mongoActions.stop.mutateAsync({ mongoId: serviceId });
-						break;
-				}
+				await performServiceStop(service);
 				success++;
 			} catch {
 				toast.error(`Error stopping service ${serviceId}`);
@@ -549,6 +809,12 @@ const EnvironmentPage = (
 							targetEnvironmentId: selectedTargetEnvironment,
 						});
 						break;
+					case "libsql":
+						await libsqlActions.move.mutateAsync({
+							libsqlId: serviceId,
+							targetEnvironmentId: selectedTargetEnvironment,
+						});
+						break;
 				}
 				await utils.environment.one.invalidate({
 					environmentId,
@@ -580,45 +846,7 @@ const EnvironmentPage = (
 			try {
 				const service = filteredServices.find((s) => s.id === serviceId);
 				if (!service) continue;
-
-				switch (service.type) {
-					case "application":
-						await applicationActions.delete.mutateAsync({
-							applicationId: serviceId,
-						});
-						break;
-					case "compose":
-						await composeActions.delete.mutateAsync({
-							composeId: serviceId,
-							deleteVolumes,
-						});
-						break;
-					case "postgres":
-						await postgresActions.delete.mutateAsync({
-							postgresId: serviceId,
-						});
-						break;
-					case "mysql":
-						await mysqlActions.delete.mutateAsync({
-							mysqlId: serviceId,
-						});
-						break;
-					case "mariadb":
-						await mariadbActions.delete.mutateAsync({
-							mariadbId: serviceId,
-						});
-						break;
-					case "redis":
-						await redisActions.delete.mutateAsync({
-							redisId: serviceId,
-						});
-						break;
-					case "mongo":
-						await mongoActions.delete.mutateAsync({
-							mongoId: serviceId,
-						});
-						break;
-				}
+				await performServiceDelete(service, deleteVolumes);
 				await utils.environment.one.invalidate({
 					environmentId,
 				});
@@ -647,44 +875,7 @@ const EnvironmentPage = (
 			try {
 				const service = filteredServices.find((s) => s.id === serviceId);
 				if (!service) continue;
-
-				switch (service.type) {
-					case "application":
-						await applicationActions.deploy.mutateAsync({
-							applicationId: serviceId,
-						});
-						break;
-					case "compose":
-						await composeActions.deploy.mutateAsync({
-							composeId: serviceId,
-						});
-						break;
-					case "postgres":
-						await postgresActions.deploy.mutateAsync({
-							postgresId: serviceId,
-						});
-						break;
-					case "mysql":
-						await mysqlActions.deploy.mutateAsync({
-							mysqlId: serviceId,
-						});
-						break;
-					case "mariadb":
-						await mariadbActions.deploy.mutateAsync({
-							mariadbId: serviceId,
-						});
-						break;
-					case "redis":
-						await redisActions.deploy.mutateAsync({
-							redisId: serviceId,
-						});
-						break;
-					case "mongo":
-						await mongoActions.deploy.mutateAsync({
-							mongoId: serviceId,
-						});
-						break;
-				}
+				await performServiceDeploy(service);
 				success++;
 			} catch (error) {
 				failed++;
@@ -695,7 +886,7 @@ const EnvironmentPage = (
 		}
 		if (success > 0) {
 			toast.success(
-				`${success} service${success !== 1 ? "s" : ""} deployed successfully`,
+				`${success} service${success !== 1 ? "s" : ""} queued for deployment`,
 			);
 		}
 		if (failed > 0) {
@@ -709,6 +900,27 @@ const EnvironmentPage = (
 		setIsBulkActionLoading(false);
 	};
 
+	// Get unique servers from services
+	const availableServers = useMemo(() => {
+		if (!applications) return [];
+		const servers = new Map<string, { serverId: string; serverName: string }>();
+		applications.forEach((service) => {
+			if (service.serverId && service.serverName) {
+				servers.set(service.serverId, {
+					serverId: service.serverId,
+					serverName: service.serverName,
+				});
+			}
+		});
+		return Array.from(servers.values());
+	}, [applications]);
+
+	// Check if there are services without a server (Dokploy server)
+	const hasServicesWithoutServer = useMemo(() => {
+		if (!applications) return false;
+		return applications.some((service) => !service.serverId);
+	}, [applications]);
+
 	const filteredServices = useMemo(() => {
 		if (!applications) return [];
 		const filtered = applications.filter(
@@ -717,10 +929,14 @@ const EnvironmentPage = (
 					service.description
 						?.toLowerCase()
 						.includes(searchQuery.toLowerCase())) &&
-				(selectedTypes.length === 0 || selectedTypes.includes(service.type)),
+				(selectedTypes.length === 0 || selectedTypes.includes(service.type)) &&
+				(selectedServerId === "" ||
+					selectedServerId === "all" ||
+					(selectedServerId === "dokploy-server" && !service.serverId) ||
+					service.serverId === selectedServerId),
 		);
 		return sortServices(filtered);
-	}, [applications, searchQuery, selectedTypes, sortBy]);
+	}, [applications, searchQuery, selectedTypes, selectedServerId, sortBy]);
 
 	const selectedServicesWithRunningStatus = useMemo(() => {
 		return filteredServices.filter(
@@ -728,6 +944,8 @@ const EnvironmentPage = (
 				selectedServices.includes(service.id) && service.status === "running",
 		);
 	}, [filteredServices, selectedServices]);
+
+	const hasServiceActions = (_service: Services) => true;
 
 	if (isLoading) {
 		return (
@@ -750,25 +968,15 @@ const EnvironmentPage = (
 
 	return (
 		<div>
-			<BreadcrumbSidebar
-				list={[
-					{ name: "Projects", href: "/dashboard/projects" },
-					{
-						name: projectData?.name || "",
-					},
-					{
-						name: currentEnvironment.name,
-					},
-				]}
-			/>
+			<AdvanceBreadcrumb />
 			<Head>
 				<title>
-					Environment: {currentEnvironment.name} | {projectData?.name} | Dokploy
+					{currentEnvironment.name} | {projectData?.name} | {appName}
 				</title>
 			</Head>
 			<div className="w-full">
-				<Card className="h-full bg-sidebar p-2.5 rounded-xl">
-					<div className="rounded-xl bg-background shadow-md">
+				<Card className="h-full bg-sidebar border-0 rounded-xl -mx-4 -mt-8">
+					<div className="rounded-xl bg-background">
 						<div className="flex justify-between gap-4 w-full items-center flex-wrap p-6">
 							<CardHeader className="p-0">
 								<CardTitle className="text-xl flex flex-row gap-2 items-center">
@@ -793,7 +1001,7 @@ const EnvironmentPage = (
 									<ProjectEnvironment projectId={projectId}>
 										<Button variant="outline">Project Environment</Button>
 									</ProjectEnvironment>
-									{(auth?.role === "owner" || auth?.canCreateServices) && (
+									{permissions?.service.create && (
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
 												<Button>
@@ -915,8 +1123,7 @@ const EnvironmentPage = (
 														Stop
 													</Button>
 												</DialogAction>
-												{(auth?.role === "owner" ||
-													auth?.canDeleteServices) && (
+												{permissions?.service.delete && (
 													<>
 														<DialogAction
 															title="Delete Services"
@@ -1217,6 +1424,9 @@ const EnvironmentPage = (
 												<SelectValue placeholder="Sort by..." />
 											</SelectTrigger>
 											<SelectContent>
+												<SelectItem value="lastDeploy-desc">
+													Recently deployed
+												</SelectItem>
 												<SelectItem value="createdAt-desc">
 													Newest first
 												</SelectItem>
@@ -1291,6 +1501,39 @@ const EnvironmentPage = (
 												</Command>
 											</PopoverContent>
 										</Popover>
+										{(availableServers.length > 0 ||
+											hasServicesWithoutServer) && (
+											<Select
+												value={selectedServerId || "all"}
+												onValueChange={setSelectedServerId}
+											>
+												<SelectTrigger className="lg:w-[200px]">
+													<SelectValue placeholder="Filter by server..." />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All servers</SelectItem>
+													{hasServicesWithoutServer && (
+														<SelectItem value="dokploy-server">
+															<div className="flex items-center gap-2">
+																<ServerIcon className="size-4" />
+																<span>Dokploy server</span>
+															</div>
+														</SelectItem>
+													)}
+													{availableServers.map((server) => (
+														<SelectItem
+															key={server.serverId}
+															value={server.serverId}
+														>
+															<div className="flex items-center gap-2">
+																<ServerIcon className="size-4" />
+																<span>{server.serverName}</span>
+															</div>
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										)}
 									</div>
 								</div>
 
@@ -1316,93 +1559,278 @@ const EnvironmentPage = (
 										<div className="flex w-full flex-col gap-4">
 											<div className="gap-5 pb-10 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
 												{filteredServices?.map((service) => (
-													<Card
-														key={service.id}
-														onClick={() => {
-															router.push(
-																`/dashboard/project/${projectId}/environment/${environmentId}/services/${service.type}/${service.id}`,
-															);
-														}}
-														className="flex flex-col group relative cursor-pointer bg-transparent transition-colors hover:bg-border"
-													>
-														{service.serverId && (
-															<div className="absolute -left-1 -top-2">
-																<ServerIcon className="size-4 text-muted-foreground" />
-															</div>
-														)}
-														<div className="absolute -right-1 -top-2">
-															<StatusTooltip status={service.status} />
-														</div>
-
-														<div
-															className={cn(
-																"absolute -left-3 -bottom-3 size-9 translate-y-1 rounded-full p-0 transition-all duration-200 z-10 bg-background border",
-																selectedServices.includes(service.id)
-																	? "opacity-100 translate-y-0"
-																	: "opacity-0 group-hover:translate-y-0 group-hover:opacity-100",
-															)}
-															onClick={(e) =>
-																handleServiceSelect(service.id, e)
-															}
-														>
-															<div className="h-full w-full flex items-center justify-center">
-																<Checkbox
-																	checked={selectedServices.includes(
-																		service.id,
+													<ContextMenu key={service.id}>
+														<ContextMenuTrigger asChild>
+															<Link
+																href={`/dashboard/project/${projectId}/environment/${environmentId}/services/${service.type}/${service.id}`}
+															>
+																<Card className="flex flex-col group relative cursor-pointer bg-transparent transition-colors hover:bg-border">
+																	{service.serverId && (
+																		<div className="absolute -left-1 -top-2">
+																			<ServerIcon className="size-4 text-muted-foreground" />
+																		</div>
 																	)}
-																	className="data-[state=checked]:bg-primary"
-																/>
-															</div>
-														</div>
-
-														<CardHeader>
-															<CardTitle className="flex items-center justify-between">
-																<div className="flex flex-row items-center gap-2 justify-between w-full">
-																	<div className="flex flex-col gap-2">
-																		<span className="text-base flex items-center gap-2 font-medium leading-none flex-wrap">
-																			{service.name}
-																		</span>
-																		{service.description && (
-																			<span className="text-sm font-medium text-muted-foreground">
-																				{service.description}
-																			</span>
-																		)}
+																	<div className="absolute -right-1 -top-2">
+																		<StatusTooltip status={service.status} />
 																	</div>
 
-																	<span className="text-sm font-medium text-muted-foreground self-start">
-																		{service.type === "postgres" && (
-																			<PostgresqlIcon className="h-7 w-7" />
+																	<div
+																		className={cn(
+																			"absolute -left-3 -bottom-3 size-9 translate-y-1 rounded-full p-0 transition-all duration-200 z-10 bg-background border",
+																			selectedServices.includes(service.id)
+																				? "opacity-100 translate-y-0"
+																				: "opacity-0 group-hover:translate-y-0 group-hover:opacity-100",
 																		)}
-																		{service.type === "redis" && (
-																			<RedisIcon className="h-7 w-7" />
+																		onClick={(e) =>
+																			handleServiceSelect(service.id, e)
+																		}
+																	>
+																		<div className="h-full w-full flex items-center justify-center">
+																			<Checkbox
+																				checked={selectedServices.includes(
+																					service.id,
+																				)}
+																				className="data-[state=checked]:bg-primary"
+																			/>
+																		</div>
+																	</div>
+
+																	<CardHeader>
+																		<CardTitle className="flex items-center justify-between">
+																			<div className="flex flex-row items-center gap-2 justify-between w-full">
+																				<div className="flex flex-col gap-2">
+																					<span className="text-base flex items-center gap-2 font-medium leading-none flex-wrap">
+																						{service.name}
+																					</span>
+																					{service.description && (
+																						<span className="text-sm font-medium text-muted-foreground">
+																							{service.description}
+																						</span>
+																					)}
+																				</div>
+
+																				<span className="text-sm font-medium text-muted-foreground self-start">
+																					{service.type === "postgres" && (
+																						<PostgresqlIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "redis" && (
+																						<RedisIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "mariadb" && (
+																						<MariadbIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "mongo" && (
+																						<MongodbIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "mysql" && (
+																						<MysqlIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "application" && (
+																						<GlobeIcon className="h-6 w-6" />
+																					)}
+																					{service.type === "compose" && (
+																						<CircuitBoard className="h-6 w-6" />
+																					)}
+																					{service.type === "libsql" && (
+																						<LibsqlIcon className="h-6 w-6" />
+																					)}
+																				</span>
+																			</div>
+																		</CardTitle>
+																	</CardHeader>
+																	<CardFooter className="mt-auto">
+																		<div className="space-y-1 text-sm w-full">
+																			{service.serverName && (
+																				<div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+																					<ServerIcon className="size-3" />
+																					<span className="truncate">
+																						{service.serverName}
+																					</span>
+																				</div>
+																			)}
+																			<DateTooltip date={service.createdAt}>
+																				Created
+																			</DateTooltip>
+																		</div>
+																	</CardFooter>
+																</Card>
+															</Link>
+														</ContextMenuTrigger>
+														{hasServiceActions(service) && (
+															<ContextMenuContent>
+																<ContextMenuLabel>
+																	{service.name}
+																</ContextMenuLabel>
+																<ContextMenuSeparator />
+																<DialogAction
+																	title={`Start ${service.name}`}
+																	description={`Are you sure you want to start ${service.name}?`}
+																	type="default"
+																	onClick={() =>
+																		handleSingleServiceAction(service, "start")
+																	}
+																>
+																	<ContextMenuItem inset>
+																		<CheckCircle2 className="mr-2 h-4 w-4" />
+																		Start
+																	</ContextMenuItem>
+																</DialogAction>
+																<DialogAction
+																	title={`Deploy ${service.name}`}
+																	description={`Are you sure you want to deploy ${service.name}? This will redeploy/restart the service.`}
+																	type="default"
+																	onClick={() =>
+																		handleSingleServiceAction(service, "deploy")
+																	}
+																>
+																	<ContextMenuItem inset>
+																		<Play className="mr-2 h-4 w-4" />
+																		Deploy
+																	</ContextMenuItem>
+																</DialogAction>
+																<DialogAction
+																	title={`Stop ${service.name}`}
+																	description={`Are you sure you want to stop ${service.name}?`}
+																	type="destructive"
+																	onClick={() =>
+																		handleSingleServiceAction(service, "stop")
+																	}
+																>
+																	<ContextMenuItem
+																		inset
+																		className="text-destructive focus:text-destructive"
+																	>
+																		<Ban className="mr-2 h-4 w-4" />
+																		Stop
+																	</ContextMenuItem>
+																</DialogAction>
+																{permissions?.service.delete && (
+																	<>
+																		<ContextMenuSeparator />
+																		{service.type === "compose" ? (
+																			<Dialog
+																				open={
+																					composeDeleteDialogServiceId ===
+																					service.id
+																				}
+																				onOpenChange={(open) => {
+																					setComposeDeleteDialogServiceId(
+																						open ? service.id : null,
+																					);
+																					if (!open) {
+																						setSingleDeleteVolumes(false);
+																					}
+																				}}
+																			>
+																				<ContextMenuItem
+																					inset
+																					className="text-destructive focus:text-destructive"
+																					onSelect={(e) => {
+																						e.preventDefault();
+																						setComposeDeleteDialogServiceId(
+																							service.id,
+																						);
+																					}}
+																				>
+																					<Trash2 className="mr-2 h-4 w-4" />
+																					Delete
+																				</ContextMenuItem>
+																				<DialogContent>
+																					<DialogHeader>
+																						<DialogTitle>
+																							Delete {service.name}
+																						</DialogTitle>
+																						<DialogDescription>
+																							Are you sure you want to delete{" "}
+																							{service.name}? This action cannot
+																							be undone.
+																						</DialogDescription>
+																					</DialogHeader>
+																					<div className="space-y-4">
+																						<div className="flex items-center space-x-2">
+																							<Checkbox
+																								id={`delete-volumes-${service.id}`}
+																								checked={singleDeleteVolumes}
+																								onCheckedChange={(checked) =>
+																									setSingleDeleteVolumes(
+																										checked === true,
+																									)
+																								}
+																							/>
+																							<label
+																								htmlFor={`delete-volumes-${service.id}`}
+																								className="text-sm font-medium"
+																							>
+																								Delete volumes associated with
+																								this service
+																							</label>
+																						</div>
+																					</div>
+																					<DialogFooter>
+																						<Button
+																							variant="outline"
+																							onClick={() => {
+																								setComposeDeleteDialogServiceId(
+																									null,
+																								);
+																								setSingleDeleteVolumes(false);
+																							}}
+																						>
+																							Cancel
+																						</Button>
+																						<Button
+																							variant="destructive"
+																							isLoading={
+																								serviceActionLoading[
+																									service.id
+																								] === "delete"
+																							}
+																							onClick={async () => {
+																								await handleSingleServiceAction(
+																									service,
+																									"delete",
+																									{
+																										deleteVolumes:
+																											singleDeleteVolumes,
+																									},
+																								);
+																								setComposeDeleteDialogServiceId(
+																									null,
+																								);
+																								setSingleDeleteVolumes(false);
+																							}}
+																						>
+																							Delete Service
+																						</Button>
+																					</DialogFooter>
+																				</DialogContent>
+																			</Dialog>
+																		) : (
+																			<DialogAction
+																				title={`Delete ${service.name}`}
+																				description={`Are you sure you want to delete ${service.name}? This action cannot be undone.`}
+																				type="destructive"
+																				onClick={() =>
+																					handleSingleServiceAction(
+																						service,
+																						"delete",
+																					)
+																				}
+																			>
+																				<ContextMenuItem
+																					inset
+																					className="text-destructive focus:text-destructive"
+																				>
+																					<Trash2 className="mr-2 h-4 w-4" />
+																					Delete
+																				</ContextMenuItem>
+																			</DialogAction>
 																		)}
-																		{service.type === "mariadb" && (
-																			<MariadbIcon className="h-7 w-7" />
-																		)}
-																		{service.type === "mongo" && (
-																			<MongodbIcon className="h-7 w-7" />
-																		)}
-																		{service.type === "mysql" && (
-																			<MysqlIcon className="h-7 w-7" />
-																		)}
-																		{service.type === "application" && (
-																			<GlobeIcon className="h-6 w-6" />
-																		)}
-																		{service.type === "compose" && (
-																			<CircuitBoard className="h-6 w-6" />
-																		)}
-																	</span>
-																</div>
-															</CardTitle>
-														</CardHeader>
-														<CardFooter className="mt-auto">
-															<div className="space-y-1 text-sm">
-																<DateTooltip date={service.createdAt}>
-																	Created
-																</DateTooltip>
-															</div>
-														</CardFooter>
-													</Card>
+																	</>
+																)}
+															</ContextMenuContent>
+														)}
+													</ContextMenu>
 												))}
 											</div>
 										</div>
@@ -1461,9 +1889,40 @@ export async function getServerSideProps(
 				projectId: params.projectId,
 			});
 
-			await helpers.environment.one.fetch({
-				environmentId: params.environmentId,
-			});
+			// Try to fetch the requested environment
+			try {
+				await helpers.environment.one.fetch({
+					environmentId: params.environmentId,
+				});
+			} catch (error) {
+				console.log(error);
+				// If user doesn't have access to requested environment, redirect to accessible one
+				const accessibleEnvironments =
+					await helpers.environment.byProjectId.fetch({
+						projectId: params.projectId,
+					});
+
+				if (accessibleEnvironments.length > 0) {
+					// Try to find default, otherwise use first accessible
+					const targetEnv =
+						accessibleEnvironments.find((env) => env.isDefault) ||
+						accessibleEnvironments[0];
+
+					return {
+						redirect: {
+							permanent: false,
+							destination: `/dashboard/project/${params.projectId}/environment/${targetEnv.environmentId}`,
+						},
+					};
+				}
+				// No accessible environments, redirect to projects
+				return {
+					redirect: {
+						permanent: false,
+						destination: "/dashboard/projects",
+					},
+				};
+			}
 
 			await helpers.environment.byProjectId.fetch({
 				projectId: params.projectId,
@@ -1476,7 +1935,8 @@ export async function getServerSideProps(
 					environmentId: params.environmentId,
 				},
 			};
-		} catch {
+		} catch (error) {
+			console.log(error);
 			return {
 				redirect: {
 					permanent: false,
