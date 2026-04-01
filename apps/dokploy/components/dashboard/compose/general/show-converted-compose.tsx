@@ -47,7 +47,7 @@ export const ShowConvertedCompose = ({ composeId }: Props) => {
 	return (
 		<Dialog open={isOpen} onOpenChange={setIsOpen}>
 			<DialogTrigger asChild>
-				<Button className="max-lg:w-full" variant="outline">
+				<Button className="max-lg:w-full bg-popover rounded-t-none rounded-r-none border-t-0 border-r-0 active:hover:scale-[1]" variant="outline">
 					<Puzzle className="h-4 w-4" />
 					Preview Compose
 				</Button>

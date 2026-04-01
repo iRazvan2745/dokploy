@@ -927,7 +927,7 @@ export default function Page({ children }: Props) {
 			}
 		>
 			<Sidebar>
-				<SidebarHeader>
+				<SidebarHeader className="border-b -mt-px">
 					{/* <SidebarMenuButton
 						className="group-data-[collapsible=icon]:!p-0"
 						size="lg"
@@ -937,7 +937,7 @@ export default function Page({ children }: Props) {
 				</SidebarHeader>
 				<SidebarContent>
 					<SidebarGroup>
-						<SidebarGroupLabel>Home</SidebarGroupLabel>
+						<SidebarGroupLabel className="border-t-0 sticky top-0">Home</SidebarGroupLabel>
 						<SidebarMenu>
 							{filteredHome.map((item) => {
 								const isSingle = item.isSingle !== false;

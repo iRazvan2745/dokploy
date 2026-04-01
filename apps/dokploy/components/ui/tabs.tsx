@@ -1,7 +1,6 @@
 'use client';
 
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
-
 import { cn } from '@/lib/utils';
 
 type TabsVariant = 'default' | 'outline' | 'underline';
@@ -10,7 +9,7 @@ function Tabs({ className, ...props }: TabsPrimitive.Root.Props) {
   return (
     <TabsPrimitive.Root
       className={cn(
-        'flex flex-col gap-2 data-[orientation=vertical]:flex-row',
+        'flex flex-col gap-4 data-[orientation=vertical]:flex-row',
         className
       )}
       data-slot="tabs"
@@ -30,23 +29,28 @@ function TabsList({
   return (
     <TabsPrimitive.List
       className={cn(
-        'relative z-0 flex w-fit items-center justify-center gap-x-0.5 text-card-foreground ring-2 ring-muted',
+        'relative z-0 flex w-fit items-center justify-center gap-x-0.5 text-card-foreground',
         'data-[orientation=vertical]:flex-col',
         variant === 'default'
-          ? 'rounded-lg bg-card p-0.5 text-card-foreground/64'
-          : 'data-[orientation=vertical]:px-1 data-[orientation=horizontal]:py-1 *:data-[slot=tabs-trigger]:hover:bg-popover',
+          ? 'rounded-lg bg-muted/50 p-1 text-card-foreground/64'
+          : 'border-b border-border data-[orientation=vertical]:border-b-0 data-[orientation=vertical]:border-r',
         className
       )}
       data-slot="tabs-list"
       {...props}
     >
       {children}
+
+      {/* The Magic Indicator */}
       <TabsPrimitive.Indicator
         className={cn(
-          '-translate-y-(--active-tab-bottom) absolute bottom-0 left-0 h-(--active-tab-height) w-(--active-tab-width) translate-x-(--active-tab-left) transition-[width,translate] duration-200 ease-in-out',
+          // 1. Fixed the syntax for Tailwind v3 variable interpolation
+          'absolute top-0 left-0 transition-[width,height,transform] duration-300 ease-in-out',
+          'h-[var(--active-tab-height)] w-[var(--active-tab-width)] translate-x-[var(--active-tab-left)] translate-y-[var(--active-tab-top)]',
+
           variant === 'underline'
-            ? 'data-[orientation=vertical]:-translate-x-px z-10 bg-primary data-[orientation=horizontal]:h-0.5 data-[orientation=vertical]:w-0.5 data-[orientation=horizontal]:translate-y-px'
-            : '-z-1 rounded-md bg-background shadow-sm dark:bg-muted'
+            ? 'z-10 bg-primary data-[orientation=horizontal]:top-auto data-[orientation=horizontal]:bottom-0 data-[orientation=horizontal]:h-0.5'
+            : 'z-0 rounded-md bg-background shadow-sm dark:bg-muted' // Changed -z-1 to z-0
         )}
         data-slot="tab-indicator"
       />
@@ -58,10 +62,10 @@ function TabsTab({ className, ...props }: TabsPrimitive.Tab.Props) {
   return (
     <TabsPrimitive.Tab
       className={cn(
-        "flex flex-1 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-md border border-transparent font-medium text-sm outline-none transition-[color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-ring data-disabled:pointer-events-none data-disabled:opacity-64 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-        'hover:text-card-foreground data-selected:text-foreground',
-        'gap-1.5 px-[calc(--spacing(2.5)-1px)] py-[calc(--spacing(1.5)-1px)]',
-        'data-[orientation=vertical]:w-full data-[orientation=vertical]:justify-start',
+        "relative z-10 flex flex-1 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-md border border-transparent font-medium text-sm outline-none transition-colors disabled:pointer-events-none disabled:opacity-50",
+        "text-muted-foreground hover:text-foreground aria-[selected=true]:text-foreground",
+        "gap-1.5 px-3 py-1.5",
+        "data-[orientation=vertical]:w-full data-[orientation=vertical]:justify-start",
         className
       )}
       data-slot="tabs-trigger"
@@ -73,7 +77,12 @@ function TabsTab({ className, ...props }: TabsPrimitive.Tab.Props) {
 function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
-      className={cn('flex-1 outline-none', className)}
+      className={cn(
+        'flex-1 outline-none',
+        // Simple CSS fade-in animation when the panel enters
+        'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 duration-200',
+        className
+      )}
       data-slot="tabs-content"
       {...props}
     />

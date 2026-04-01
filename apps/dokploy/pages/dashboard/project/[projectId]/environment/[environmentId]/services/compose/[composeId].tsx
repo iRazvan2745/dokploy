@@ -28,7 +28,6 @@ import { ShowDockerLogsCompose } from "@/components/dashboard/compose/logs/show"
 import { ShowDockerLogsStack } from "@/components/dashboard/compose/logs/show-stack";
 import { UpdateCompose } from "@/components/dashboard/compose/update-compose";
 import { ShowBackups } from "@/components/dashboard/database/backups/show-backups";
-import { ComposeFreeMonitoring } from "@/components/dashboard/monitoring/free/container/show-free-compose-monitoring";
 import { ComposePaidMonitoring } from "@/components/dashboard/monitoring/paid/container/show-paid-compose-monitoring";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { AdvanceBreadcrumb } from "@/components/shared/advance-breadcrumb";
@@ -100,7 +99,7 @@ const Service = (
 			<AdvanceBreadcrumb />
 			<Head>
 				<title>
-					Compose: {data?.name} - {data?.environment?.project?.name} | {appName}
+					{data?.name} - {data?.environment?.project?.name} | {appName}
 				</title>
 			</Head>
 			<div className="w-full">
@@ -214,8 +213,8 @@ const Service = (
 									router.push(newPath);
 								}}
 							>
-									<div className="flex flex-row items-center w-full overflow-auto">
-										<TabsList className="flex gap-8 max-md:gap-4 justify-start">
+									<div className="flex items-center w-full overflow-auto">
+										<TabsList className="flex gap-7 max-md:gap-4 justify-start">
 											<TabsTrigger value="general">General</TabsTrigger>
 											{permissions?.envVars.read && (
 												<TabsTrigger value="environment">
@@ -248,7 +247,7 @@ const Service = (
 												<TabsTrigger value="patches">Patches</TabsTrigger>
 											)}
 											{permissions?.monitoring.read &&
-												((data?.serverId && isCloud) || !data?.server) && (
+												((data?.serverId) || !data?.server) && (
 													<TabsTrigger value="monitoring">
 														Monitoring
 													</TabsTrigger>
@@ -382,6 +381,7 @@ const Service = (
 };
 
 export default Service;
+
 Service.getLayout = (page: ReactElement) => {
 	return <DashboardLayout>{page}</DashboardLayout>;
 };
