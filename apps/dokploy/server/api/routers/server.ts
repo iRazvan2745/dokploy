@@ -20,7 +20,6 @@ import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { and, desc, eq, getTableColumns, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { updateServersBasedOnQuantity } from "@/pages/api/stripe/webhook";
 import { audit } from "@/server/api/utils/audit";
 import {
 	createTRPCRouter,
@@ -383,12 +382,6 @@ export const serverRouter = createTRPCRouter({
 				});
 				await removeDeploymentsByServerId(currentServer);
 				await deleteServer(input.serverId);
-
-				if (IS_CLOUD) {
-					const admin = await findUserById(ctx.user.ownerId);
-
-					await updateServersBasedOnQuantity(admin.id, admin.serversQuantity);
-				}
 
 				return currentServer;
 			} catch (error) {

@@ -1,22 +1,10 @@
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import * as React from "react";
 import { HandleTag } from "@/components/dashboard/settings/tags/handle-tag";
 import { TagBadge } from "@/components/shared/tag-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export interface Tag {
@@ -43,6 +31,22 @@ export function TagSelector({
 	disabled = false,
 }: TagSelectorProps) {
 	const [open, setOpen] = React.useState(false);
+	const [query, setQuery] = React.useState("");
+	const containerRef = React.useRef<HTMLDivElement>(null);
+
+	React.useEffect(() => {
+		if (!open) return;
+
+		const handlePointerDown = (event: MouseEvent) => {
+			const target = event.target as Node;
+			if (!containerRef.current?.contains(target)) {
+				setOpen(false);
+			}
+		};
+
+		document.addEventListener("mousedown", handlePointerDown);
+		return () => document.removeEventListener("mousedown", handlePointerDown);
+	}, [open]);
 
 	const handleTagToggle = (tagId: string) => {
 		if (selectedTags.includes(tagId)) {
@@ -60,75 +64,78 @@ export function TagSelector({
 	const selectedTagObjects = tags.filter((tag) =>
 		selectedTags.includes(tag.id),
 	);
+	const filteredTags = tags.filter((tag) =>
+		tag.name.toLowerCase().includes(query.trim().toLowerCase()),
+	);
 
 	return (
-		<div className={cn("w-full", className)}>
-			<Popover open={open} onOpenChange={setOpen}>
-				<PopoverTrigger asChild>
-					<Button
-						variant="outline"
-						aria-expanded={open}
-						className={cn(
-							"w-full justify-between min-h-10 h-auto bg-input",
-							disabled && "cursor-not-allowed opacity-50",
-						)}
-						disabled={disabled}
-					>
-						<div className="flex flex-wrap gap-1 flex-1">
-							{selectedTagObjects.length > 0 ? (
-								selectedTagObjects.map((tag) => (
-									<TagBadge
-										key={tag.id}
-										name={tag.name}
-										color={tag.color}
-										className="flex items-center gap-1 pr-1"
-									>
-										<button
-											type="button"
-											onClick={(e) => handleTagRemove(tag.id, e)}
-											className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-											disabled={disabled}
-										>
-											<X className="h-3 w-3 hover:opacity-70" />
-											<span className="sr-only">Remove {tag.name}</span>
-										</button>
-									</TagBadge>
-								))
-							) : (
-								<span className="text-muted-foreground">{placeholder}</span>
-							)}
-						</div>
-						<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-					</Button>
-				</PopoverTrigger>
-				<PopoverContent className="w-full p-0" align="start">
-					<Command>
-						<CommandInput
+		<div ref={containerRef} className={cn("relative w-full", className)}>
+			<Button
+				type="button"
+				variant="outline"
+				aria-expanded={open}
+				onClick={() => !disabled && setOpen((current) => !current)}
+				className={cn(
+					"w-full justify-between min-h-10 h-auto bg-input",
+					disabled && "cursor-not-allowed opacity-50",
+				)}
+				disabled={disabled}
+			>
+				<div className="flex flex-wrap gap-1 flex-1">
+					{selectedTagObjects.length > 0 ? (
+						selectedTagObjects.map((tag) => (
+							<TagBadge
+								key={tag.id}
+								name={tag.name}
+								color={tag.color}
+								className="flex items-center gap-1 pr-1"
+							>
+								<button
+									type="button"
+									onClick={(e) => handleTagRemove(tag.id, e)}
+									className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+									disabled={disabled}
+								>
+									<X className="h-3 w-3 hover:opacity-70" />
+									<span className="sr-only">Remove {tag.name}</span>
+								</button>
+							</TagBadge>
+						))
+					) : (
+						<span className="text-muted-foreground">{placeholder}</span>
+					)}
+				</div>
+				<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+			</Button>
+
+			{open && (
+				<div className="absolute inset-x-0 top-full z-[80] mt-2 rounded-md border bg-popover p-2 text-popover-foreground shadow-md">
+					<div className="relative">
+						<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							value={query}
+							onChange={(event) => setQuery(event.target.value)}
 							placeholder="Search tags..."
-							className="focus-visible:ring-0"
+							className="pl-9"
+							autoFocus
 						/>
-						<CommandList>
-							<CommandEmpty>
-								<div className="flex flex-col items-center gap-2 py-1">
-									<span className="text-sm text-muted-foreground">
-										No tags found.
-									</span>
-									<HandleTag />
-								</div>
-							</CommandEmpty>
-							<CommandGroup>
-								{tags.map((tag) => {
+					</div>
+
+					<div className="mt-2 max-h-[240px] overflow-y-auto">
+						{filteredTags.length > 0 ? (
+							<div className="space-y-1">
+								{filteredTags.map((tag) => {
 									const isSelected = selectedTags.includes(tag.id);
 									return (
-										<CommandItem
+										<button
 											key={tag.id}
-											onSelect={() => handleTagToggle(tag.id)}
-											className="cursor-pointer"
+											type="button"
+											onClick={() => handleTagToggle(tag.id)}
+											className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
 										>
 											<Checkbox
 												checked={isSelected}
-												className="mr-2"
-												onCheckedChange={() => handleTagToggle(tag.id)}
+												className="pointer-events-none"
 											/>
 											<TagBadge
 												name={tag.name}
@@ -141,14 +148,21 @@ export function TagSelector({
 													isSelected ? "opacity-100" : "opacity-0",
 												)}
 											/>
-										</CommandItem>
+										</button>
 									);
 								})}
-							</CommandGroup>
-						</CommandList>
-					</Command>
-				</PopoverContent>
-			</Popover>
+							</div>
+						) : (
+							<div className="flex flex-col items-center gap-2 py-4">
+								<span className="text-sm text-muted-foreground">
+									No tags found.
+								</span>
+								<HandleTag />
+							</div>
+						)}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

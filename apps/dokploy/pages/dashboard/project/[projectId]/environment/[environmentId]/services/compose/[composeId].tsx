@@ -166,9 +166,8 @@ const Service = (
 														side="top"
 													>
 														<span>
-															You cannot, deploy this application because the
-															server is inactive, please upgrade your plan to
-															add more servers.
+															You cannot deploy this service while its server is
+															inactive.
 														</span>
 													</TooltipContent>
 												</Tooltip>
@@ -194,17 +193,16 @@ const Service = (
 										<ServerOff className="size-10 text-muted-foreground self-center" />
 										<span className="text-center text-base text-muted-foreground">
 											This service is hosted on the server {data.server.name},
-											but this server has been disabled because your current
-											plan doesn't include enough servers. Please purchase more
-											servers to regain access to this application.
+											but that server is currently inactive. Reactivate the
+											server to regain access to this service.
 										</span>
 										<span className="text-center text-base text-muted-foreground">
 											Go to{" "}
 											<Link
-												href="/dashboard/settings/billing"
+												href="/dashboard/settings/servers"
 												className="text-primary"
 											>
-												Billing
+												Servers
 											</Link>
 										</span>
 									</div>

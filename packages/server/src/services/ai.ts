@@ -127,10 +127,10 @@ export const suggestVariants = async ({
 
 		    CRITICAL - Read the user's request carefully and follow the appropriate strategy:
 
-		    Strategy A - If the user specifies a PARTICULAR APPLICATION/SERVICE (e.g., "deploy Chatwoot", "install sendingtk/chatwoot:develop", "setup Bitwarden"):
+		    Strategy A - If the user specifies a PARTICULAR APPLICATION/SERVICE (e.g., "deploy Outline", "install outlinewiki/outline:latest", "setup Bitwarden"):
 		    - Generate different deployment VARIANTS of that SAME application
 		    - Each variant should be a different configuration (minimal, full stack, with different databases, development vs production, etc.)
-		    - Example: For "Chatwoot" → "Chatwoot with PostgreSQL", "Chatwoot Development", "Chatwoot Full Stack"
+		    - Example: For "Outline" → "Outline with PostgreSQL", "Outline with Redis", "Outline Full Stack"
 		    - The name MUST include the specific application name the user mentioned
 
 		    Strategy B - If the user describes a GENERAL NEED or USE CASE (e.g., "personal blog", "project management tool", "chat application"):
@@ -232,10 +232,10 @@ export const suggestVariants = async ({
 		          4. For dependencies (databases, redis, etc.), use official images (e.g., postgres:16, redis:7, etc.)
 		          5. Always specify image tags - avoid using 'latest' tag, use specific versions when possible
 		          6. Examples of correct image usage:
-		             - image: sendingtk/chatwoot:develop
+		             - image: outlinewiki/outline:latest
 		             - image: postgres:16-alpine
 		             - image: redis:7-alpine
-		             - image: chatwoot/chatwoot:latest
+		             - image: nginx:1.27-alpine
 		          7. Examples of INCORRECT usage (DO NOT USE):
 		             - build: .
 		             - build: ./app

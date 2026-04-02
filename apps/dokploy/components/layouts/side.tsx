@@ -381,14 +381,6 @@ const MENU: Menu = {
 		},
 		{
 			isSingle: true,
-			title: "Billing",
-			url: "/dashboard/settings/billing",
-			icon: CreditCard,
-			// Only enabled for owners in cloud environments
-			isEnabled: ({ auth, isCloud }) => !!(auth?.role === "owner" && isCloud),
-		},
-		{
-			isSingle: true,
 			title: "SSO",
 			url: "/dashboard/settings/sso",
 			icon: LogIn,

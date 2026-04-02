@@ -131,16 +131,6 @@ export const UserNav = () => {
 						)
 					)}
 				</DropdownMenuGroup>
-				{isCloud && data?.role === "owner" && (
-					<DropdownMenuItem
-						className="cursor-pointer"
-						onClick={() => {
-							router.push("/dashboard/settings/billing");
-						}}
-					>
-						Billing
-					</DropdownMenuItem>
-				)}
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					className="cursor-pointer"

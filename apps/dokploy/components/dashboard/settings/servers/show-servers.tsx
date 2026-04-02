@@ -12,7 +12,6 @@ import {
 	User,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/router";
 import { toast } from "sonner";
 import { AlertBlock } from "@/components/shared/alert-block";
 import { DialogAction } from "@/components/shared/dialog-action";
@@ -49,22 +48,16 @@ import { ShowMonitoringModal } from "./show-monitoring-modal";
 import { ShowSchedulesModal } from "./show-schedules-modal";
 import { ShowSwarmOverviewModal } from "./show-swarm-overview-modal";
 import { ShowTraefikFileSystemModal } from "./show-traefik-file-system-modal";
-import { WelcomeSuscription } from "./welcome-stripe/welcome-suscription";
 
 export const ShowServers = () => {
-	const router = useRouter();
-	const query = router.query;
 	const { data, refetch, isPending } = api.server.all.useQuery();
 	const { mutateAsync } = api.server.remove.useMutation();
 	const { data: sshKeys } = api.sshKey.all.useQuery();
 	const { data: isCloud } = api.settings.isCloud.useQuery();
-	const { data: canCreateMoreServers } =
-		api.stripe.canCreateMoreServers.useQuery();
 	const { data: permissions } = api.user.getPermissions.useQuery();
 
 	return (
 		<div className="w-full">
-			{query?.success && isCloud && <WelcomeSuscription />}
 			<Card className="h-full  p-2.5 rounded-xl  max-w-5xl mx-auto">
 				<div className="rounded-xl bg-background shadow-md ">
 					<CardHeader className="">
@@ -75,17 +68,6 @@ export const ShowServers = () => {
 						<CardDescription>
 							Add servers to deploy your applications remotely.
 						</CardDescription>
-
-						{isCloud && (
-							<span
-								className="bg-gradient-to-r cursor-pointer from-blue-600 via-green-500 to-indigo-400 inline-block text-transparent bg-clip-text text-sm"
-								onClick={() => {
-									router.push("/dashboard/settings/servers?success=true");
-								}}
-							>
-								Reset Onboarding
-							</span>
-						)}
 					</CardHeader>
 					<CardContent className="space-y-2 py-8 border-t">
 						{isPending ? (
@@ -211,11 +193,9 @@ export const ShowServers = () => {
 																								side="bottom"
 																							>
 																								<p className="text-sm">
-																									This server is deactivated due
-																									to lack of payment. Please pay
-																									your invoice to reactivate it.
-																									If you think this is an error,
-																									please contact support.
+																									This server is inactive and
+																									must be reactivated before it
+																									can host services again.
 																								</p>
 																							</TooltipContent>
 																						</Tooltip>
