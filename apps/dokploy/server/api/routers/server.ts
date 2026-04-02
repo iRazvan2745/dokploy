@@ -3,8 +3,6 @@ import {
 	defaultCommand,
 	deleteServer,
 	findServerById,
-	findServersByUserId,
-	findUserById,
 	getPublicIpWithFallback,
 	haveActiveServices,
 	IS_CLOUD,
@@ -48,14 +46,6 @@ export const serverRouter = createTRPCRouter({
 		.input(apiCreateServer)
 		.mutation(async ({ ctx, input }) => {
 			try {
-				const user = await findUserById(ctx.user.ownerId);
-				const servers = await findServersByUserId(user.id);
-				if (IS_CLOUD && servers.length >= user.serversQuantity) {
-					throw new TRPCError({
-						code: "BAD_REQUEST",
-						message: "You cannot create more servers",
-					});
-				}
 				const project = await createServer(
 					input,
 					ctx.session.activeOrganizationId,

@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { DialogAction } from "@/components/shared/dialog-action";
 import { DrawerLogs } from "@/components/shared/drawer-logs";
 import { Button } from "@/components/ui/button";
+import {
+	ButtonGroup,
+	buttonGroupItemClassName,
+} from "@/components/ui/button-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Tooltip,
@@ -74,157 +78,156 @@ export const ShowGeneralMysql = ({ mysqlId }: Props) => {
 					<CardContent className="flex flex-row gap-4 flex-wrap">
 						<TooltipProvider delayDuration={0}>
 							{canDeploy && (
-								<DialogAction
-									title="Deploy MySQL"
-									description="Are you sure you want to deploy this mysql?"
-									type="default"
-									onClick={async () => {
-										setIsDeploying(true);
-										await new Promise((resolve) => setTimeout(resolve, 1000));
-										refetch();
-									}}
-								>
-									<Button
-										variant="default"
-										isLoading={data?.applicationStatus === "running"}
-										className="flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-offset-2"
-									>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<div className="flex items-center">
-													<Rocket className="size-4 mr-1" />
-													Deploy
-												</div>
-											</TooltipTrigger>
-											<TooltipPrimitive.Portal>
-												<TooltipContent sideOffset={5} className="z-[60]">
-													<p>Downloads and sets up the MySQL database</p>
-												</TooltipContent>
-											</TooltipPrimitive.Portal>
-										</Tooltip>
-									</Button>
-								</DialogAction>
-							)}
-							{canDeploy && (
-								<DialogAction
-									title="Reload MySQL"
-									description="Are you sure you want to reload this mysql?"
-									type="default"
-									onClick={async () => {
-										await reload({
-											mysqlId: mysqlId,
-											appName: data?.appName || "",
-										})
-											.then(() => {
-												toast.success("MySQL reloaded successfully");
-												refetch();
-											})
-											.catch(() => {
-												toast.error("Error reloading MySQL");
-											});
-									}}
-								>
-									<Button
-										variant="secondary"
-										isLoading={isReloading}
-										className="flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-offset-2"
-									>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<div className="flex items-center">
-													<RefreshCcw className="size-4 mr-1" />
-													Reload
-												</div>
-											</TooltipTrigger>
-											<TooltipPrimitive.Portal>
-												<TooltipContent sideOffset={5} className="z-[60]">
-													<p>Restart the MySQL service without rebuilding</p>
-												</TooltipContent>
-											</TooltipPrimitive.Portal>
-										</Tooltip>
-									</Button>
-								</DialogAction>
-							)}
-							{canDeploy &&
-								(data?.applicationStatus === "idle" ? (
+								<ButtonGroup>
 									<DialogAction
-										title="Start MySQL"
-										description="Are you sure you want to start this mysql?"
+										title="Deploy MySQL"
+										description="Are you sure you want to deploy this mysql?"
 										type="default"
 										onClick={async () => {
-											await start({
+											setIsDeploying(true);
+											await new Promise((resolve) => setTimeout(resolve, 1000));
+											refetch();
+										}}
+									>
+										<Button
+											variant="default"
+											isLoading={data?.applicationStatus === "running"}
+											className={buttonGroupItemClassName}
+										>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<div className="flex items-center">
+														<Rocket className="size-4" />
+														Deploy
+													</div>
+												</TooltipTrigger>
+												<TooltipPrimitive.Portal>
+													<TooltipContent sideOffset={5} className="z-[60]">
+														<p>Downloads and sets up the MySQL database</p>
+													</TooltipContent>
+												</TooltipPrimitive.Portal>
+											</Tooltip>
+										</Button>
+									</DialogAction>
+									<DialogAction
+										title="Reload MySQL"
+										description="Are you sure you want to reload this mysql?"
+										type="default"
+										onClick={async () => {
+											await reload({
 												mysqlId: mysqlId,
+												appName: data?.appName || "",
 											})
 												.then(() => {
-													toast.success("MySQL started successfully");
+													toast.success("MySQL reloaded successfully");
 													refetch();
 												})
 												.catch(() => {
-													toast.error("Error starting MySQL");
+													toast.error("Error reloading MySQL");
 												});
 										}}
 									>
 										<Button
 											variant="secondary"
-											isLoading={isStarting}
-											className="flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-offset-2"
+											isLoading={isReloading}
+											className={buttonGroupItemClassName}
 										>
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<div className="flex items-center">
-														<CheckCircle2 className="size-4 mr-1" />
-														Start
+														<RefreshCcw className="size-4" />
+														Reload
 													</div>
 												</TooltipTrigger>
 												<TooltipPrimitive.Portal>
 													<TooltipContent sideOffset={5} className="z-[60]">
-														<p>
-															Start the MySQL database (requires a previous
-															successful setup)
-														</p>
+														<p>Restart the MySQL service without rebuilding</p>
 													</TooltipContent>
 												</TooltipPrimitive.Portal>
 											</Tooltip>
 										</Button>
 									</DialogAction>
-								) : (
-									<DialogAction
-										title="Stop MySQL"
-										description="Are you sure you want to stop this mysql?"
-										onClick={async () => {
-											await stop({
-												mysqlId: mysqlId,
-											})
-												.then(() => {
-													toast.success("MySQL stopped successfully");
-													refetch();
+									{data?.applicationStatus === "idle" ? (
+										<DialogAction
+											title="Start MySQL"
+											description="Are you sure you want to start this mysql?"
+											type="default"
+											onClick={async () => {
+												await start({
+													mysqlId: mysqlId,
 												})
-												.catch(() => {
-													toast.error("Error stopping MySQL");
-												});
-										}}
-									>
-										<Button
-											variant="destructive"
-											isLoading={isStopping}
-											className="flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-offset-2"
+													.then(() => {
+														toast.success("MySQL started successfully");
+														refetch();
+													})
+													.catch(() => {
+														toast.error("Error starting MySQL");
+													});
+											}}
 										>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<div className="flex items-center">
-														<Ban className="size-4 mr-1" />
-														Stop
-													</div>
-												</TooltipTrigger>
-												<TooltipPrimitive.Portal>
-													<TooltipContent sideOffset={5} className="z-[60]">
-														<p>Stop the currently running MySQL database</p>
-													</TooltipContent>
-												</TooltipPrimitive.Portal>
-											</Tooltip>
-										</Button>
-									</DialogAction>
-								))}
+											<Button
+												variant="secondary"
+												isLoading={isStarting}
+												className={buttonGroupItemClassName}
+											>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<div className="flex items-center">
+															<CheckCircle2 className="size-4" />
+															Start
+														</div>
+													</TooltipTrigger>
+													<TooltipPrimitive.Portal>
+														<TooltipContent sideOffset={5} className="z-[60]">
+															<p>
+																Start the MySQL database (requires a previous
+																successful setup)
+															</p>
+														</TooltipContent>
+													</TooltipPrimitive.Portal>
+												</Tooltip>
+											</Button>
+										</DialogAction>
+									) : (
+										<DialogAction
+											title="Stop MySQL"
+											description="Are you sure you want to stop this mysql?"
+											onClick={async () => {
+												await stop({
+													mysqlId: mysqlId,
+												})
+													.then(() => {
+														toast.success("MySQL stopped successfully");
+														refetch();
+													})
+													.catch(() => {
+														toast.error("Error stopping MySQL");
+													});
+											}}
+										>
+											<Button
+												variant="destructive"
+												isLoading={isStopping}
+												className={buttonGroupItemClassName}
+											>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<div className="flex items-center">
+															<Ban className="size-4" />
+															Stop
+														</div>
+													</TooltipTrigger>
+													<TooltipPrimitive.Portal>
+														<TooltipContent sideOffset={5} className="z-[60]">
+															<p>Stop the currently running MySQL database</p>
+														</TooltipContent>
+													</TooltipPrimitive.Portal>
+												</Tooltip>
+											</Button>
+										</DialogAction>
+									)}
+								</ButtonGroup>
+							)}
 						</TooltipProvider>
 						<DockerTerminalModal
 							appName={data?.appName || ""}

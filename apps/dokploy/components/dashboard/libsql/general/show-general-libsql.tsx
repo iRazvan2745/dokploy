@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { DialogAction } from "@/components/shared/dialog-action";
 import { DrawerLogs } from "@/components/shared/drawer-logs";
 import { Button } from "@/components/ui/button";
+import {
+	ButtonGroup,
+	buttonGroupItemClassName,
+} from "@/components/ui/button-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Tooltip,
@@ -73,79 +77,76 @@ export const ShowGeneralLibsql = ({ libsqlId }: Props) => {
 					</CardHeader>
 					<CardContent className="flex flex-row gap-4 flex-wrap">
 						<TooltipProvider delayDuration={0}>
-							<DialogAction
-								title="Deploy Libsql"
-								description="Are you sure you want to deploy this Libsql?"
-								type="default"
-								onClick={async () => {
-									setIsDeploying(true);
-									await new Promise((resolve) => setTimeout(resolve, 1000));
-									refetch();
-								}}
-							>
-								<Button
-									variant="default"
-									isLoading={data?.applicationStatus === "running"}
-									className="flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-offset-2"
+							<ButtonGroup>
+								<DialogAction
+									title="Deploy Libsql"
+									description="Are you sure you want to deploy this Libsql?"
+									type="default"
+									onClick={async () => {
+										setIsDeploying(true);
+										await new Promise((resolve) => setTimeout(resolve, 1000));
+										refetch();
+									}}
 								>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div className="flex items-center">
-												<Rocket className="size-4 mr-1" />
-												Deploy
-											</div>
-										</TooltipTrigger>
-										<TooltipPrimitive.Portal>
-											<TooltipContent sideOffset={5} className="z-[60]">
-												<p>Downloads and sets up the Libsql database</p>
-											</TooltipContent>
-										</TooltipPrimitive.Portal>
-									</Tooltip>
-								</Button>
-							</DialogAction>
-						</TooltipProvider>
-						<TooltipProvider delayDuration={0}>
-							<DialogAction
-								title="Reload Libsql"
-								description="Are you sure you want to reload this libsql?"
-								type="default"
-								onClick={async () => {
-									await reload({
-										libsqlId: libsqlId,
-										appName: data?.appName || "",
-									})
-										.then(() => {
-											toast.success("Libsql reloaded successfully");
-											refetch();
+									<Button
+										variant="default"
+										isLoading={data?.applicationStatus === "running"}
+										className={buttonGroupItemClassName}
+									>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<div className="flex items-center">
+													<Rocket className="size-4" />
+													Deploy
+												</div>
+											</TooltipTrigger>
+											<TooltipPrimitive.Portal>
+												<TooltipContent sideOffset={5} className="z-[60]">
+													<p>Downloads and sets up the Libsql database</p>
+												</TooltipContent>
+											</TooltipPrimitive.Portal>
+										</Tooltip>
+									</Button>
+								</DialogAction>
+								<DialogAction
+									title="Reload Libsql"
+									description="Are you sure you want to reload this libsql?"
+									type="default"
+									onClick={async () => {
+										await reload({
+											libsqlId: libsqlId,
+											appName: data?.appName || "",
 										})
-										.catch(() => {
-											toast.error("Error reloading Libsql");
-										});
-								}}
-							>
-								<Button
-									variant="secondary"
-									isLoading={isReloading}
-									className="flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-offset-2"
+											.then(() => {
+												toast.success("Libsql reloaded successfully");
+												refetch();
+											})
+											.catch(() => {
+												toast.error("Error reloading Libsql");
+											});
+									}}
 								>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div className="flex items-center">
-												<RefreshCcw className="size-4 mr-1" />
-												Reload
-											</div>
-										</TooltipTrigger>
-										<TooltipPrimitive.Portal>
-											<TooltipContent sideOffset={5} className="z-[60]">
-												<p>Restart the Libsql service without rebuilding</p>
-											</TooltipContent>
-										</TooltipPrimitive.Portal>
-									</Tooltip>
-								</Button>
-							</DialogAction>
-						</TooltipProvider>
-						{data?.applicationStatus === "idle" ? (
-							<TooltipProvider delayDuration={0}>
+									<Button
+										variant="secondary"
+										isLoading={isReloading}
+										className={buttonGroupItemClassName}
+									>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<div className="flex items-center">
+													<RefreshCcw className="size-4" />
+													Reload
+												</div>
+											</TooltipTrigger>
+											<TooltipPrimitive.Portal>
+												<TooltipContent sideOffset={5} className="z-[60]">
+													<p>Restart the Libsql service without rebuilding</p>
+												</TooltipContent>
+											</TooltipPrimitive.Portal>
+										</Tooltip>
+									</Button>
+								</DialogAction>
+								{data?.applicationStatus === "idle" ? (
 								<DialogAction
 									title="Start Libsql"
 									description="Are you sure you want to start this Libsql?"
@@ -166,12 +167,12 @@ export const ShowGeneralLibsql = ({ libsqlId }: Props) => {
 									<Button
 										variant="secondary"
 										isLoading={isStarting}
-										className="flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-offset-2"
+										className={buttonGroupItemClassName}
 									>
 										<Tooltip>
 											<TooltipTrigger asChild>
 												<div className="flex items-center">
-													<CheckCircle2 className="size-4 mr-1" />
+													<CheckCircle2 className="size-4" />
 													Start
 												</div>
 											</TooltipTrigger>
@@ -186,9 +187,7 @@ export const ShowGeneralLibsql = ({ libsqlId }: Props) => {
 										</Tooltip>
 									</Button>
 								</DialogAction>
-							</TooltipProvider>
-						) : (
-							<TooltipProvider delayDuration={0}>
+							) : (
 								<DialogAction
 									title="Stop Libsql"
 									description="Are you sure you want to stop this Libsql?"
@@ -208,12 +207,12 @@ export const ShowGeneralLibsql = ({ libsqlId }: Props) => {
 									<Button
 										variant="destructive"
 										isLoading={isStopping}
-										className="flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-offset-2"
+										className={buttonGroupItemClassName}
 									>
 										<Tooltip>
 											<TooltipTrigger asChild>
 												<div className="flex items-center">
-													<Ban className="size-4 mr-1" />
+													<Ban className="size-4" />
 													Stop
 												</div>
 											</TooltipTrigger>
@@ -225,8 +224,9 @@ export const ShowGeneralLibsql = ({ libsqlId }: Props) => {
 										</Tooltip>
 									</Button>
 								</DialogAction>
-							</TooltipProvider>
-						)}
+							)}
+							</ButtonGroup>
+						</TooltipProvider>
 						<DockerTerminalModal
 							appName={data?.appName || ""}
 							serverId={data?.serverId || ""}

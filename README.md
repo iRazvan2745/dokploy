@@ -8,7 +8,12 @@ Forkploy includes multiple features to make your life easier.
 - **No fucking paywalls**: Use whatever you want for free without using dokploy's crappy cloud version.
 - **Fucking context menus**: Right click on a service or project to interact with it instead of using bulk ops.
 - **Individual container actions**: Do actions against individual containers in a compose(restart, stop blah blah)
+- **Container migrations**
 
+## Photos:
+
+![image](https://cdn.irazz.lol/forkploy/compose_overview.jpg)
+![image](https://cdn.irazz.lol/forkploy/compose_containers.jpg)
 
 ## 🚀 Getting Started
 

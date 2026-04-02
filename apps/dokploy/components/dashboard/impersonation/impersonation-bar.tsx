@@ -10,7 +10,6 @@ import {
 	Copy,
 	Fingerprint,
 	Key,
-	Server,
 	Settings2,
 	Shield,
 	UserIcon,
@@ -358,12 +357,6 @@ export const ImpersonationBar = () => {
 													</Button>
 												</span>
 											</span>
-											{data?.user?.serversQuantity !== undefined && (
-												<span className="flex items-center gap-1">
-													<Server className="h-3 w-3" />
-													<span>Servers: {data.user.serversQuantity}</span>
-												</span>
-											)}
 											{data?.createdAt && (
 												<span className="flex items-center gap-1">
 													<Calendar className="h-3 w-3" />

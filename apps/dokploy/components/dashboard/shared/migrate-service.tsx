@@ -5,6 +5,13 @@ import { AlertBlock } from "@/components/shared/alert-block";
 import { DrawerLogs } from "@/components/shared/drawer-logs";
 import { Button } from "@/components/ui/button";
 import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -22,8 +29,6 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/utils/api";
 import { type LogLine, parseLogs } from "../docker/logs/utils";
-
-const LOCAL_TARGET = "local";
 
 type MigratableServiceType =
 	| "application"
@@ -68,16 +73,16 @@ export const MigrateService = ({
 				!!server.sshKeyId,
 		) ?? [];
 
-	const canTargetLocal = !!currentServerId;
 	const otherServersCount =
-		(servers?.filter((server) => server.serverId !== currentServerId).length ??
-			0) + (canTargetLocal ? 1 : 0);
+		servers?.filter((server) => server.serverId !== currentServerId).length ??
+		0;
+	const targetCount = targetServers.length;
 
 	api.serviceMigration.migrateWithLogs.useSubscription(
 		{
 			serviceId,
 			serviceType,
-			targetServerId: selectedTargetServerId || LOCAL_TARGET,
+			targetServerId: selectedTargetServerId,
 		},
 		{
 			enabled: isMigrating && !!selectedTargetServerId,
@@ -115,11 +120,42 @@ export const MigrateService = ({
 					}
 				}}
 			>
-				<DialogTrigger asChild>
-					<Button variant="outline" size="icon" className="group">
-						<ArrowRightLeft className="size-3.5 text-primary" />
-					</Button>
-				</DialogTrigger>
+				<Card className="bg-background">
+					<CardHeader>
+						<CardTitle className="text-xl flex items-center gap-2">
+							<ArrowRightLeft className="h-5 w-5 text-primary" />
+							Container Migration
+						</CardTitle>
+						<CardDescription>
+							Move {serviceName} to another server using rsync over SSH. The
+							service must be stopped before starting the migration.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="flex flex-col gap-4">
+						<AlertBlock type="info">
+							Using the Dokploy server is not recommended, please keep them
+							separate.
+						</AlertBlock>
+						<div className="flex flex-col gap-2">
+							<h3 className="text-base font-semibold">Available targets</h3>
+							<p className="text-sm text-muted-foreground">
+								{targetCount > 0
+									? `${targetCount} migration target${targetCount === 1 ? "" : "s"} available.`
+									: "No eligible migration targets are currently available."}
+							</p>
+						</div>
+						<DialogTrigger asChild>
+							<Button
+								variant="outline"
+								className="w-full sm:w-fit"
+								disabled={targetCount === 0}
+							>
+								<ArrowRightLeft className="mr-2 h-4 w-4" />
+								Migrate Container
+							</Button>
+						</DialogTrigger>
+					</CardContent>
+				</Card>
 				<DialogContent className="sm:max-w-lg">
 					<DialogHeader>
 						<DialogTitle>Migrate Service</DialogTitle>
@@ -143,14 +179,6 @@ export const MigrateService = ({
 								<SelectValue placeholder="Select a target server" />
 							</SelectTrigger>
 							<SelectContent>
-								{canTargetLocal && (
-									<SelectItem value={LOCAL_TARGET}>
-										<div className="flex items-center gap-2">
-											<ServerIcon className="size-4" />
-											<span>Dokploy server</span>
-										</div>
-									</SelectItem>
-								)}
 								{targetServers.map((server) => (
 									<SelectItem key={server.serverId} value={server.serverId}>
 										<div className="flex items-center gap-2">

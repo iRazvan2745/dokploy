@@ -191,66 +191,72 @@ ${installUtilities()}
 ${
 	!isBuildServer
 		? `
-echo -e "2. Validating ports. "
+echo -e "2. Installing Rsync. "
+${installRsync()}
+
+echo -e "3. Validating ports. "
 ${validatePorts()}
 
 
 
-echo -e "3. Installing RClone. "
+echo -e "4. Installing RClone. "
 ${installRClone()}
 
-echo -e "4. Installing Docker. "
+echo -e "5. Installing Docker. "
 ${installDocker()}
 
-echo -e "5. Setting up Docker Swarm"
+echo -e "6. Setting up Docker Swarm"
 ${setupSwarm()}
 
-echo -e "6. Setting up Network"
+echo -e "7. Setting up Network"
 ${setupNetwork()}
 
-echo -e "7. Setting up Directories"
+echo -e "8. Setting up Directories"
 ${setupMainDirectory()}
 ${setupDirectories()}
 
-echo -e "8. Setting up Traefik"
+echo -e "9. Setting up Traefik"
 ${createTraefikConfig()}
 
-echo -e "9. Setting up Middlewares"
+echo -e "10. Setting up Middlewares"
 ${createDefaultMiddlewares()}
 
-echo -e "10. Setting up Traefik Instance"
+echo -e "11. Setting up Traefik Instance"
 ${createTraefikInstance()}
 
-echo -e "11. Installing Nixpacks"
+echo -e "12. Installing Nixpacks"
 ${installNixpacks()}
 
-echo -e "12. Installing Buildpacks"
+echo -e "13. Installing Buildpacks"
 ${installBuildpacks()}
 
-echo -e "13. Installing Railpack"
+echo -e "14. Installing Railpack"
 ${installRailpack()}
 
-echo -e "14. Configuring permissions"
+echo -e "15. Configuring permissions"
 ${setupPermissions()}
 `
 		: `
-echo -e "2. Installing Docker. "
+echo -e "2. Installing Rsync. "
+${installRsync()}
+
+echo -e "3. Installing Docker. "
 ${installDocker()}
 
-echo -e "3. Setting up Directories"
+echo -e "4. Setting up Directories"
 ${setupMainDirectory()}
 ${setupDirectories()}
 
-echo -e "4. Installing Nixpacks"
+echo -e "5. Installing Nixpacks"
 ${installNixpacks()}
 
-echo -e "5. Installing Buildpacks"
+echo -e "6. Installing Buildpacks"
 ${installBuildpacks()}
 
-echo -e "6. Installing Railpack"
+echo -e "7. Installing Railpack"
 ${installRailpack()}
 
-echo -e "7. Configuring permissions"
+echo -e "8. Configuring permissions"
 ${setupPermissions()}
 `
 }
@@ -670,6 +676,48 @@ export const installRClone = () => `
 		curl https://rclone.org/install.sh | $SUDO_CMD bash
 		RCLONE_VERSION=$(rclone --version | head -n 1 | awk '{print $2}' | sed 's/^v//')
 		echo "RClone version $RCLONE_VERSION installed ✅"
+	fi
+`;
+
+const installRsync = () => `
+	if command_exists rsync; then
+		RSYNC_VERSION=$(rsync --version | head -n 1 | awk '{print $3}')
+		echo "Rsync version $RSYNC_VERSION installed ✅"
+	else
+		case "$OS_TYPE" in
+		arch)
+			$SUDO_CMD pacman -Sy --noconfirm --needed rsync >/dev/null
+			;;
+		alpine)
+			$SUDO_CMD apk add rsync >/dev/null
+			;;
+		ubuntu | debian | raspbian)
+			export DEBIAN_FRONTEND=noninteractive
+			$SUDO_CMD apt-get update -y >/dev/null
+			$SUDO_CMD apt-get install -y rsync >/dev/null
+			;;
+		centos | fedora | rhel | ol | rocky | almalinux | opencloudos | amzn)
+			if ! command -v dnf >/dev/null; then
+				$SUDO_CMD yum install -y dnf >/dev/null
+			fi
+			$SUDO_CMD dnf install -y rsync >/dev/null
+			;;
+		sles | opensuse-leap | opensuse-tumbleweed)
+			$SUDO_CMD zypper install -y rsync >/dev/null
+			;;
+		*)
+			echo "Unsupported OS for automatic rsync installation ❌"
+			exit 1
+			;;
+		esac
+
+		if command_exists rsync; then
+			RSYNC_VERSION=$(rsync --version | head -n 1 | awk '{print $3}')
+			echo "Rsync version $RSYNC_VERSION installed ✅"
+		else
+			echo "Failed to install rsync ❌"
+			exit 1
+		fi
 	fi
 `;
 

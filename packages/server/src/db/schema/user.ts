@@ -2,7 +2,6 @@ import { paths } from "@dokploy/server/constants";
 import { relations } from "drizzle-orm";
 import {
 	boolean,
-	integer,
 	pgTable,
 	text,
 	timestamp,
@@ -62,7 +61,6 @@ export const user = pgTable("user", {
 	isValidEnterpriseLicense: boolean("isValidEnterpriseLicense")
 		.notNull()
 		.default(false),
-	serversQuantity: integer("serversQuantity").notNull().default(0),
 	trustedOrigins: text("trustedOrigins").array(),
 });
 

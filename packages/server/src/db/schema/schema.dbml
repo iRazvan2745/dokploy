@@ -947,7 +947,6 @@ table user_temp {
   cleanupCacheApplications boolean [not null, default: false]
   cleanupCacheOnPreviews boolean [not null, default: false]
   cleanupCacheOnCompose boolean [not null, default: false]
-  serversQuantity integer [not null, default: 0]
 }
 
 table verification {
