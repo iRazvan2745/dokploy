@@ -1,6 +1,6 @@
 {
 	"name": "dokploy",
-	"version": "rizz-4.1.26",
+	"version": "rizz-2.4.26",
 	"private": true,
 	"license": "Apache-2.0",
 	"type": "module",
