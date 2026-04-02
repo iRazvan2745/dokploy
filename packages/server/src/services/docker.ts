@@ -354,21 +354,41 @@ export const getContainersByAppLabel = async (
 	return [];
 };
 
-export const containerRestart = async (containerId: string) => {
-	try {
-		const { stdout, stderr } = await execAsync(
-			`docker container restart ${containerId}`,
-		);
+const runContainerLifecycleCommand = async (
+	command: "start" | "stop" | "restart" | "kill",
+	containerId: string,
+	serverId?: string,
+) => {
+	const dockerCommand = `docker container ${command} ${containerId}`;
+	const { stdout, stderr } = serverId
+		? await execAsyncRemote(serverId, dockerCommand)
+		: await execAsync(dockerCommand);
 
-		if (stderr) {
-			console.error(`Error: ${stderr}`);
-			return;
-		}
+	if (stderr) {
+		console.error(`Error: ${stderr}`);
+		throw new Error(stderr);
+	}
 
-		const config = JSON.parse(stdout);
+	return stdout.trim();
+};
 
-		return config;
-	} catch {}
+export const containerRestart = async (
+	containerId: string,
+	serverId?: string,
+) => {
+	return await runContainerLifecycleCommand("restart", containerId, serverId);
+};
+
+export const containerStart = async (containerId: string, serverId?: string) => {
+	return await runContainerLifecycleCommand("start", containerId, serverId);
+};
+
+export const containerStop = async (containerId: string, serverId?: string) => {
+	return await runContainerLifecycleCommand("stop", containerId, serverId);
+};
+
+export const containerKill = async (containerId: string, serverId?: string) => {
+	return await runContainerLifecycleCommand("kill", containerId, serverId);
 };
 
 export const containerRemove = async (

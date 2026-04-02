@@ -1,6 +1,9 @@
 import {
+	containerKill,
 	containerRemove,
 	containerRestart,
+	containerStart,
+	containerStop,
 	findServerById,
 	getConfig,
 	getContainers,
@@ -40,12 +43,100 @@ export const dockerRouter = createTRPCRouter({
 					.string()
 					.min(1)
 					.regex(containerIdRegex, "Invalid container id."),
+				serverId: z.string().optional(),
 			}),
 		)
 		.mutation(async ({ input, ctx }) => {
-			const result = await containerRestart(input.containerId);
+			if (input.serverId) {
+				const server = await findServerById(input.serverId);
+				if (server.organizationId !== ctx.session?.activeOrganizationId) {
+					throw new TRPCError({ code: "UNAUTHORIZED" });
+				}
+			}
+			const result = await containerRestart(input.containerId, input.serverId);
 			await audit(ctx, {
 				action: "start",
+				resourceType: "docker",
+				resourceId: input.containerId,
+				resourceName: input.containerId,
+			});
+			return result;
+		}),
+
+	startContainer: withPermission("docker", "read")
+		.input(
+			z.object({
+				containerId: z
+					.string()
+					.min(1)
+					.regex(containerIdRegex, "Invalid container id."),
+				serverId: z.string().optional(),
+			}),
+		)
+		.mutation(async ({ input, ctx }) => {
+			if (input.serverId) {
+				const server = await findServerById(input.serverId);
+				if (server.organizationId !== ctx.session?.activeOrganizationId) {
+					throw new TRPCError({ code: "UNAUTHORIZED" });
+				}
+			}
+			const result = await containerStart(input.containerId, input.serverId);
+			await audit(ctx, {
+				action: "start",
+				resourceType: "docker",
+				resourceId: input.containerId,
+				resourceName: input.containerId,
+			});
+			return result;
+		}),
+
+	stopContainer: withPermission("docker", "read")
+		.input(
+			z.object({
+				containerId: z
+					.string()
+					.min(1)
+					.regex(containerIdRegex, "Invalid container id."),
+				serverId: z.string().optional(),
+			}),
+		)
+		.mutation(async ({ input, ctx }) => {
+			if (input.serverId) {
+				const server = await findServerById(input.serverId);
+				if (server.organizationId !== ctx.session?.activeOrganizationId) {
+					throw new TRPCError({ code: "UNAUTHORIZED" });
+				}
+			}
+			const result = await containerStop(input.containerId, input.serverId);
+			await audit(ctx, {
+				action: "stop",
+				resourceType: "docker",
+				resourceId: input.containerId,
+				resourceName: input.containerId,
+			});
+			return result;
+		}),
+
+	killContainer: withPermission("docker", "read")
+		.input(
+			z.object({
+				containerId: z
+					.string()
+					.min(1)
+					.regex(containerIdRegex, "Invalid container id."),
+				serverId: z.string().optional(),
+			}),
+		)
+		.mutation(async ({ input, ctx }) => {
+			if (input.serverId) {
+				const server = await findServerById(input.serverId);
+				if (server.organizationId !== ctx.session?.activeOrganizationId) {
+					throw new TRPCError({ code: "UNAUTHORIZED" });
+				}
+			}
+			const result = await containerKill(input.containerId, input.serverId);
+			await audit(ctx, {
+				action: "stop",
 				resourceType: "docker",
 				resourceId: input.containerId,
 				resourceName: input.containerId,
