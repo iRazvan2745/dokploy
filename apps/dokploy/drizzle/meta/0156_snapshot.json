@@ -1,5 +1,5 @@
 {
-  "id": "c5128929-b097-4d2f-bba2-deffc80e590e",
+  "id": "54d2750c-4a55-4c83-9ff9-0478689c833f",
   "prevId": "61cdc4f5-a8e9-4abe-9bfb-ec338b161e1a",
   "version": "7",
   "dialect": "postgresql",
@@ -5079,6 +5079,13 @@
           "notNull": true,
           "default": false
         },
+        "dokployBackup": {
+          "name": "dokployBackup",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "dockerCleanup": {
           "name": "dockerCleanup",
           "type": "boolean",
@@ -7566,6 +7573,25 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "stripeCustomerId": {
+          "name": "stripeCustomerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripeSubscriptionId": {
+          "name": "stripeSubscriptionId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "serversQuantity": {
+          "name": "serversQuantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "trustedOrigins": {
           "name": "trustedOrigins",
