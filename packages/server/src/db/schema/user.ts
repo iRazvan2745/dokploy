@@ -1,5 +1,5 @@
 import { paths } from "@dokploy/server/constants";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
 	pgTable,
@@ -62,6 +62,9 @@ export const user = pgTable("user", {
 		.notNull()
 		.default(false),
 	trustedOrigins: text("trustedOrigins").array(),
+	bookmarkedTemplates: text("bookmarkedTemplates")
+		.array()
+		.default(sql`ARRAY[]::text[]`),
 });
 
 export const usersRelations = relations(user, ({ one, many }) => ({
@@ -83,6 +86,7 @@ const createSchema = createInsertSchema(user, {
 }).omit({
 	role: true,
 	trustedOrigins: true,
+	bookmarkedTemplates: true,
 	isValidEnterpriseLicense: true,
 });
 
