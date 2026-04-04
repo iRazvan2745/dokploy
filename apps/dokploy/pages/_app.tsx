@@ -6,6 +6,7 @@ import { Inter } from "next/font/google";
 import Head from "next/head";
 import { ThemeProvider } from "next-themes";
 import NextTopLoader from "nextjs-toploader";
+import { NuqsAdapter } from "nuqs/adapters/next/pages";
 import type { ReactElement, ReactNode } from "react";
 import { SearchCommand } from "@/components/dashboard/search-command";
 import { WhitelabelingProvider } from "@/components/proprietary/whitelabeling/whitelabeling-provider";
@@ -48,11 +49,13 @@ const MyApp = ({
 				disableTransitionOnChange
 				forcedTheme={Component.theme}
 			>
-				<NextTopLoader color="hsl(var(--input))" />
-				<WhitelabelingProvider />
-				<Toaster richColors />
-				<SearchCommand />
-				{getLayout(<Component {...pageProps} />)}
+				<NuqsAdapter>
+					<NextTopLoader color="hsl(var(--input))" />
+					<WhitelabelingProvider />
+					<Toaster richColors />
+					<SearchCommand />
+					{getLayout(<Component {...pageProps} />)}
+				</NuqsAdapter>
 			</ThemeProvider>
 		</>
 	);

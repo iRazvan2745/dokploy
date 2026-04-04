@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-import { api } from "@/utils/api";
 import { useWhitelabelingPublic } from "@/utils/hooks/use-whitelabeling";
 
 const LoginSchema = z.object({
@@ -60,7 +59,6 @@ interface Props {
 export default function Home({ IS_CLOUD }: Props) {
 	const router = useRouter();
 	const { config: whitelabeling } = useWhitelabelingPublic();
-	const { data: showSignInWithSSO } = api.sso.showSignInWithSSO.useQuery();
 	const [isLoginLoading, setIsLoginLoading] = useState(false);
 	const [isTwoFactorLoading, setIsTwoFactorLoading] = useState(false);
 	const [isBackupCodeLoading, setIsBackupCodeLoading] = useState(false);
@@ -241,11 +239,7 @@ export default function Home({ IS_CLOUD }: Props) {
 			<CardContent className="p-0">
 				{!isTwoFactor ? (
 					<>
-						{showSignInWithSSO ? (
-							<SignInWithSSO>{loginContent}</SignInWithSSO>
-						) : (
-							loginContent
-						)}
+						<SignInWithSSO>{loginContent}</SignInWithSSO>
 					</>
 				) : (
 					<>

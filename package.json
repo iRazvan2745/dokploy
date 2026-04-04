@@ -2,8 +2,10 @@
 	"name": "forkploy",
 	"private": true,
 	"workspaces": [
-		"apps/*",
-		"packages/*"
+		"apps/api",
+		"apps/dokploy",
+		"apps/schedules",
+		"packages/server"
 	],
 	"scripts": {
 		"dokploy:setup": "pnpm --filter=dokploy run setup",
@@ -45,9 +47,6 @@
 		"@types/react-dom": "18.3.0"
 	},
 	"pnpm": {
-		"overrides": {
-			"esbuild": "0.20.2"
-		},
 		"onlyBuiltDependencies": [
 			"@scarf/scarf",
 			"@tree-sitter-grammars/tree-sitter-yaml",
@@ -66,5 +65,8 @@
 			"@prisma/engines",
 			"prisma"
 		]
+	},
+	"overrides": {
+		"esbuild": "0.20.2"
 	}
 }

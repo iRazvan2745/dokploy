@@ -69,6 +69,14 @@ import {
 	CommandItem,
 } from "@/components/ui/command";
 import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuLabel,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -96,14 +104,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import {
-	ContextMenu,
-	ContextMenuContent,
-	ContextMenuItem,
-	ContextMenuLabel,
-	ContextMenuSeparator,
-	ContextMenuTrigger,
-} from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import { appRouter } from "@/server/api/root";
 import { api } from "@/utils/api";
@@ -511,10 +511,15 @@ const EnvironmentPage = (
 		deploy: api.mongo.deploy.useMutation(),
 	};
 
-	const setServiceActionState = (
-		serviceId: string,
-		action: string | null,
-	) => {
+	const libsqlActions = {
+		start: api.libsql.start.useMutation(),
+		stop: api.libsql.stop.useMutation(),
+		move: api.libsql.move.useMutation(),
+		delete: api.libsql.remove.useMutation(),
+		deploy: api.libsql.deploy.useMutation(),
+	};
+
+	const setServiceActionState = (serviceId: string, action: string | null) => {
 		setServiceActionLoading((prev) => {
 			if (!action) {
 				const { [serviceId]: _, ...rest } = prev;
@@ -553,6 +558,7 @@ const EnvironmentPage = (
 				await mongoActions.start.mutateAsync({ mongoId: service.id });
 				return;
 			case "libsql":
+				await libsqlActions.start.mutateAsync({ libsqlId: service.id });
 				return;
 		}
 	};
@@ -583,6 +589,7 @@ const EnvironmentPage = (
 				await mongoActions.stop.mutateAsync({ mongoId: service.id });
 				return;
 			case "libsql":
+				await libsqlActions.stop.mutateAsync({ libsqlId: service.id });
 				return;
 		}
 	};
@@ -613,6 +620,7 @@ const EnvironmentPage = (
 				await mongoActions.deploy.mutateAsync({ mongoId: service.id });
 				return;
 			case "libsql":
+				await libsqlActions.deploy.mutateAsync({ libsqlId: service.id });
 				return;
 		}
 	};
@@ -649,6 +657,7 @@ const EnvironmentPage = (
 				await mongoActions.delete.mutateAsync({ mongoId: service.id });
 				return;
 			case "libsql":
+				await libsqlActions.delete.mutateAsync({ libsqlId: service.id });
 				return;
 		}
 	};
@@ -800,6 +809,12 @@ const EnvironmentPage = (
 							targetEnvironmentId: selectedTargetEnvironment,
 						});
 						break;
+					case "libsql":
+						await libsqlActions.move.mutateAsync({
+							libsqlId: serviceId,
+							targetEnvironmentId: selectedTargetEnvironment,
+						});
+						break;
 				}
 				await utils.environment.one.invalidate({
 					environmentId,
@@ -930,7 +945,7 @@ const EnvironmentPage = (
 		);
 	}, [filteredServices, selectedServices]);
 
-	const hasServiceActions = (service: Services) => service.type !== "libsql";
+	const hasServiceActions = (_service: Services) => true;
 
 	if (isLoading) {
 		return (
@@ -961,7 +976,7 @@ const EnvironmentPage = (
 			</Head>
 			<div className="w-full">
 				<Card className="h-full bg-sidebar border-0 rounded-xl -mx-4 -mt-8">
-					<div className="rounded-xl bg-background shadow-md">
+					<div className="rounded-xl bg-background">
 						<div className="flex justify-between gap-4 w-full items-center flex-wrap p-6">
 							<CardHeader className="p-0">
 								<CardTitle className="text-xl flex flex-row gap-2 items-center">
@@ -1551,100 +1566,102 @@ const EnvironmentPage = (
 																className="block"
 															>
 																<Card className="flex flex-col group relative cursor-pointer bg-transparent transition-colors hover:bg-border">
-															{service.serverId && (
-																<div className="absolute -left-1 -top-2">
-																	<ServerIcon className="size-4 text-muted-foreground" />
-																</div>
-															)}
-															<div className="absolute -right-1 -top-2">
-																<StatusTooltip status={service.status} />
-															</div>
-
-															<div
-																className={cn(
-																	"absolute -left-3 -bottom-3 size-9 translate-y-1 rounded-full p-0 transition-all duration-200 z-10 bg-background border",
-																	selectedServices.includes(service.id)
-																		? "opacity-100 translate-y-0"
-																		: "opacity-0 group-hover:translate-y-0 group-hover:opacity-100",
-																)}
-																onClick={(e) =>
-																	handleServiceSelect(service.id, e)
-																}
-															>
-																<div className="h-full w-full flex items-center justify-center">
-																	<Checkbox
-																		checked={selectedServices.includes(
-																			service.id,
-																		)}
-																		className="data-[state=checked]:bg-primary"
-																	/>
-																</div>
-															</div>
-
-															<CardHeader>
-																<CardTitle className="flex items-center justify-between">
-																	<div className="flex flex-row items-center gap-2 justify-between w-full">
-																		<div className="flex flex-col gap-2">
-																			<span className="text-base flex items-center gap-2 font-medium leading-none flex-wrap">
-																				{service.name}
-																			</span>
-																			{service.description && (
-																				<span className="text-sm font-medium text-muted-foreground">
-																					{service.description}
-																				</span>
-																			)}
-																		</div>
-
-																		<span className="text-sm font-medium text-muted-foreground self-start">
-																			{service.type === "postgres" && (
-																				<PostgresqlIcon className="h-7 w-7" />
-																			)}
-																			{service.type === "redis" && (
-																				<RedisIcon className="h-7 w-7" />
-																			)}
-																			{service.type === "mariadb" && (
-																				<MariadbIcon className="h-7 w-7" />
-																			)}
-																			{service.type === "mongo" && (
-																				<MongodbIcon className="h-7 w-7" />
-																			)}
-																			{service.type === "mysql" && (
-																				<MysqlIcon className="h-7 w-7" />
-																			)}
-																			{service.type === "application" && (
-																				<GlobeIcon className="h-6 w-6" />
-																			)}
-																			{service.type === "compose" && (
-																				<CircuitBoard className="h-6 w-6" />
-																			)}
-																			{service.type === "libsql" && (
-																				<LibsqlIcon className="h-6 w-6" />
-																			)}
-																		</span>
-																	</div>
-																</CardTitle>
-															</CardHeader>
-															<CardFooter className="mt-auto">
-																<div className="space-y-1 text-sm w-full">
-																	{service.serverName && (
-																		<div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-																			<ServerIcon className="size-3" />
-																			<span className="truncate">
-																				{service.serverName}
-																			</span>
+																	{service.serverId && (
+																		<div className="absolute -left-1 -top-2">
+																			<ServerIcon className="size-4 text-muted-foreground" />
 																		</div>
 																	)}
-																	<DateTooltip date={service.createdAt}>
-																		Created
-																	</DateTooltip>
+																	<div className="absolute -right-1 -top-2">
+																		<StatusTooltip status={service.status} />
 																	</div>
-																</CardFooter>
+
+																	<div
+																		className={cn(
+																			"absolute -left-3 -bottom-3 size-9 translate-y-1 rounded-full p-0 transition-all duration-200 z-10 bg-background border",
+																			selectedServices.includes(service.id)
+																				? "opacity-100 translate-y-0"
+																				: "opacity-0 group-hover:translate-y-0 group-hover:opacity-100",
+																		)}
+																		onClick={(e) =>
+																			handleServiceSelect(service.id, e)
+																		}
+																	>
+																		<div className="h-full w-full flex items-center justify-center">
+																			<Checkbox
+																				checked={selectedServices.includes(
+																					service.id,
+																				)}
+																				className="data-[state=checked]:bg-primary"
+																			/>
+																		</div>
+																	</div>
+
+																	<CardHeader>
+																		<CardTitle className="flex items-center justify-between">
+																			<div className="flex flex-row items-center gap-2 justify-between w-full">
+																				<div className="flex flex-col gap-2">
+																					<span className="text-base flex items-center gap-2 font-medium leading-none flex-wrap">
+																						{service.name}
+																					</span>
+																					{service.description && (
+																						<span className="text-sm font-medium text-muted-foreground">
+																							{service.description}
+																						</span>
+																					)}
+																				</div>
+
+																				<span className="text-sm font-medium text-muted-foreground self-start">
+																					{service.type === "postgres" && (
+																						<PostgresqlIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "redis" && (
+																						<RedisIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "mariadb" && (
+																						<MariadbIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "mongo" && (
+																						<MongodbIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "mysql" && (
+																						<MysqlIcon className="h-7 w-7" />
+																					)}
+																					{service.type === "application" && (
+																						<GlobeIcon className="h-6 w-6" />
+																					)}
+																					{service.type === "compose" && (
+																						<CircuitBoard className="h-6 w-6" />
+																					)}
+																					{service.type === "libsql" && (
+																						<LibsqlIcon className="h-6 w-6" />
+																					)}
+																				</span>
+																			</div>
+																		</CardTitle>
+																	</CardHeader>
+																	<CardFooter className="mt-auto">
+																		<div className="space-y-1 text-sm w-full">
+																			{service.serverName && (
+																				<div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+																					<ServerIcon className="size-3" />
+																					<span className="truncate">
+																						{service.serverName}
+																					</span>
+																				</div>
+																			)}
+																			<DateTooltip date={service.createdAt}>
+																				Created
+																			</DateTooltip>
+																		</div>
+																	</CardFooter>
 																</Card>
 															</Link>
 														</ContextMenuTrigger>
 														{hasServiceActions(service) && (
 															<ContextMenuContent>
-																<ContextMenuLabel>{service.name}</ContextMenuLabel>
+																<ContextMenuLabel>
+																	{service.name}
+																</ContextMenuLabel>
 																<ContextMenuSeparator />
 																<DialogAction
 																	title={`Start ${service.name}`}
@@ -1694,7 +1711,8 @@ const EnvironmentPage = (
 																		{service.type === "compose" ? (
 																			<Dialog
 																				open={
-																					composeDeleteDialogServiceId === service.id
+																					composeDeleteDialogServiceId ===
+																					service.id
 																				}
 																				onOpenChange={(open) => {
 																					setComposeDeleteDialogServiceId(
@@ -1725,8 +1743,8 @@ const EnvironmentPage = (
 																						</DialogTitle>
 																						<DialogDescription>
 																							Are you sure you want to delete{" "}
-																							{service.name}? This action cannot be
-																							undone.
+																							{service.name}? This action cannot
+																							be undone.
 																						</DialogDescription>
 																					</DialogHeader>
 																					<div className="space-y-4">
@@ -1744,28 +1762,29 @@ const EnvironmentPage = (
 																								htmlFor={`delete-volumes-${service.id}`}
 																								className="text-sm font-medium"
 																							>
-																								Delete volumes associated with this
-																								service
+																								Delete volumes associated with
+																								this service
 																							</label>
 																						</div>
 																					</div>
-																						<DialogFooter>
-																							<Button
-																								variant="outline"
-																								onClick={() => {
-																									setComposeDeleteDialogServiceId(
-																										null,
-																									);
-																									setSingleDeleteVolumes(false);
-																								}}
-																							>
-																								Cancel
-																							</Button>
+																					<DialogFooter>
+																						<Button
+																							variant="outline"
+																							onClick={() => {
+																								setComposeDeleteDialogServiceId(
+																									null,
+																								);
+																								setSingleDeleteVolumes(false);
+																							}}
+																						>
+																							Cancel
+																						</Button>
 																						<Button
 																							variant="destructive"
 																							isLoading={
-																								serviceActionLoading[service.id] ===
-																								"delete"
+																								serviceActionLoading[
+																									service.id
+																								] === "delete"
 																							}
 																							onClick={async () => {
 																								await handleSingleServiceAction(

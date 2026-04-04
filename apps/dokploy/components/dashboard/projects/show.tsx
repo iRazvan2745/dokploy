@@ -60,7 +60,6 @@ export const ShowProjects = () => {
 	const utils = api.useUtils();
 	const router = useRouter();
 	const { data, isPending } = api.project.all.useQuery();
-	const { data: auth } = api.user.get.useQuery();
 	const { data: permissions } = api.user.getPermissions.useQuery();
 	const { mutateAsync } = api.project.remove.useMutation();
 	const { data: availableTags } = api.tag.all.useQuery();
@@ -202,8 +201,8 @@ export const ShowProjects = () => {
 			/>
 			<div className="w-full">
 				<Card className="h-full bg-sidebar rounded-xl border-none p-0 -mx-4 ">
-					<div className="rounded-xl bg-background shadow-md ">
-						<div className="flex justify-between gap-4 w-auto items-center flex-wrap p-4  border-b">
+					<div className="rounded-xl bg-background">
+						<div className="flex justify-between gap-4 w-auto items-center flex-wrap p-4 border-b">
 							<CardHeader className="p-0">
 								<CardTitle className="text-xl flex flex-row gap-2">
 									<FolderInput className="size-6 text-muted-foreground self-center" />

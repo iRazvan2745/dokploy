@@ -153,8 +153,8 @@ export const ShowProviderForm = ({ applicationId }: Props) => {
 						setSab(e as TabState);
 					}}
 				>
-					<div className="relative -left-6 flex w-fit flex-row items-center justify-between overflow-auto rounded-r-xl border border-l-0 bg-popover">
-						<TabsList className="ml-6 flex justify-start gap-4 bg-transparent">
+					<div className="flex w-fit flex-row items-center justify-between overflow-auto">
+						<TabsList className="flex justify-start gap-4 bg-transparent">
 							<TabsTrigger
 								value="github"
 								className="rounded-none border-b-2 gap-2 border-b-transparent data-[state=active]:border-b-2 data-[state=active]:border-b-border"
