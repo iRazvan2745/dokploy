@@ -17,6 +17,14 @@ export const validateRClone = () => `
   fi
 `;
 
+export const validateRsync = () => `
+  if command_exists rsync; then
+    echo "$(rsync --version | head -n 1 | awk '{print $3}') true"
+  else
+    echo "0.0.0 false"
+  fi
+`;
+
 export const validateSwarm = () => `
   if docker info --format '{{.Swarm.LocalNodeState}}' | grep -q 'active'; then
     echo true
@@ -79,6 +87,24 @@ export const validateDokployNetwork = () => `
   fi
 `;
 
+export const validateSudoAccess = () => `
+  if [ "$(id -u)" -eq 0 ]; then
+    echo "root true"
+  elif sudo -n true 2>/dev/null; then
+    echo "sudo true"
+  else
+    echo "none false"
+  fi
+`;
+
+export const validateDockerGroup = () => `
+  if groups | grep -qw docker; then
+    echo true
+  else
+    echo false
+  fi
+`;
+
 export const serverValidate = async (serverId: string) => {
 	const client = new Client();
 	const server = await findServerById(serverId);
@@ -96,6 +122,7 @@ export const serverValidate = async (serverId: string) => {
 
           dockerVersionEnabled=$(${validateDocker()})
           rcloneVersionEnabled=$(${validateRClone()})
+          rsyncVersionEnabled=$(${validateRsync()})
           nixpacksVersionEnabled=$(${validateNixpacks()})
           buildpacksVersionEnabled=$(${validateBuildpacks()})
           railpackVersionEnabled=$(${validateRailpack()})
@@ -104,6 +131,9 @@ export const serverValidate = async (serverId: string) => {
 
           rcloneVersion=$(echo $rcloneVersionEnabled | awk '{print $1}')
           rcloneEnabled=$(echo $rcloneVersionEnabled | awk '{print $2}')
+
+          rsyncVersion=$(echo $rsyncVersionEnabled | awk '{print $1}')
+          rsyncEnabled=$(echo $rsyncVersionEnabled | awk '{print $2}')
 
           nixpacksVersion=$(echo $nixpacksVersionEnabled | awk '{print $1}')
           nixpacksEnabled=$(echo $nixpacksVersionEnabled | awk '{print $2}')
@@ -118,7 +148,11 @@ export const serverValidate = async (serverId: string) => {
           isSwarmInstalled=$(${validateSwarm()})
           isMainDirectoryInstalled=$(${validateMainDirectory()})
 
-  echo "{\\"docker\\": {\\"version\\": \\"$dockerVersion\\", \\"enabled\\": $dockerEnabled}, \\"rclone\\": {\\"version\\": \\"$rcloneVersion\\", \\"enabled\\": $rcloneEnabled}, \\"nixpacks\\": {\\"version\\": \\"$nixpacksVersion\\", \\"enabled\\": $nixpacksEnabled}, \\"buildpacks\\": {\\"version\\": \\"$buildpacksVersion\\", \\"enabled\\": $buildpacksEnabled}, \\"railpack\\": {\\"version\\": \\"$railpackVersion\\", \\"enabled\\": $railpackEnabled}, \\"isDokployNetworkInstalled\\": $isDokployNetworkInstalled, \\"isSwarmInstalled\\": $isSwarmInstalled, \\"isMainDirectoryInstalled\\": $isMainDirectoryInstalled}"
+          sudoAccessResult=$(${validateSudoAccess()})
+          privilegeMode=$(echo $sudoAccessResult | awk '{print $1}')
+          isDockerGroupMember=$(${validateDockerGroup()})
+
+  echo "{\\"docker\\": {\\"version\\": \\"$dockerVersion\\", \\"enabled\\": $dockerEnabled}, \\"rclone\\": {\\"version\\": \\"$rcloneVersion\\", \\"enabled\\": $rcloneEnabled}, \\"rsync\\": {\\"version\\": \\"$rsyncVersion\\", \\"enabled\\": $rsyncEnabled}, \\"nixpacks\\": {\\"version\\": \\"$nixpacksVersion\\", \\"enabled\\": $nixpacksEnabled}, \\"buildpacks\\": {\\"version\\": \\"$buildpacksVersion\\", \\"enabled\\": $buildpacksEnabled}, \\"railpack\\": {\\"version\\": \\"$railpackVersion\\", \\"enabled\\": $railpackEnabled}, \\"isDokployNetworkInstalled\\": $isDokployNetworkInstalled, \\"isSwarmInstalled\\": $isSwarmInstalled, \\"isMainDirectoryInstalled\\": $isMainDirectoryInstalled, \\"privilegeMode\\": \\"$privilegeMode\\", \\"dockerGroupMember\\": $isDockerGroupMember}"
         `;
 				client.exec(bashCommand, (err, stream) => {
 					if (err) {

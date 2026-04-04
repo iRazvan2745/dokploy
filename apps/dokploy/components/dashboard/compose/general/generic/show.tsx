@@ -1,6 +1,6 @@
 import { CodeIcon, GitBranch, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { UnauthorizedGitProvider } from "@/components/dashboard/application/general/generic/unauthorized-git-provider";
 import {
@@ -21,29 +21,48 @@ import { SaveGiteaProviderCompose } from "./save-gitea-provider-compose";
 import { SaveGithubProviderCompose } from "./save-github-provider-compose";
 import { SaveGitlabProviderCompose } from "./save-gitlab-provider-compose";
 
-type TabState = "github" | "git" | "raw" | "gitlab" | "bitbucket" | "gitea";
+type TabState = "github" | "gitlab" | "bitbucket" | "gitea" | "git" | "raw";
+
 interface Props {
 	composeId: string;
 }
 
+const providerTabs: TabState[] = [
+	"github",
+	"gitlab",
+	"bitbucket",
+	"gitea",
+	"git",
+	"raw",
+];
+
 export const ShowProviderFormCompose = ({ composeId }: Props) => {
-	const { data: githubProviders, isLoading: isLoadingGithub } =
+	const { data: githubProviders, isPending: isLoadingGithub } =
 		api.github.githubProviders.useQuery();
-	const { data: gitlabProviders, isLoading: isLoadingGitlab } =
+	const { data: gitlabProviders, isPending: isLoadingGitlab } =
 		api.gitlab.gitlabProviders.useQuery();
-	const { data: bitbucketProviders, isLoading: isLoadingBitbucket } =
+	const { data: bitbucketProviders, isPending: isLoadingBitbucket } =
 		api.bitbucket.bitbucketProviders.useQuery();
-	const { data: giteaProviders, isLoading: isLoadingGitea } =
+	const { data: giteaProviders, isPending: isLoadingGitea } =
 		api.gitea.giteaProviders.useQuery();
 
 	const { mutateAsync: disconnectGitProvider } =
 		api.compose.disconnectGitProvider.useMutation();
 
 	const { data: compose, refetch } = api.compose.one.useQuery({ composeId });
-	const [tab, setSab] = useState<TabState>(compose?.sourceType || "github");
+	const [tab, setSab] = useState<TabState>("github");
 
 	const isLoading =
 		isLoadingGithub || isLoadingGitlab || isLoadingBitbucket || isLoadingGitea;
+
+	useEffect(() => {
+		if (
+			compose?.sourceType &&
+			providerTabs.includes(compose.sourceType as TabState)
+		) {
+			setSab(compose.sourceType as TabState);
+		}
+	}, [compose?.sourceType]);
 
 	const handleDisconnect = async () => {
 		try {
@@ -87,7 +106,6 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 		);
 	}
 
-	// Check if user doesn't have access to the current git provider
 	if (
 		compose &&
 		!compose.hasGitProviderAccess &&
@@ -119,7 +137,7 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 	}
 
 	return (
-		<Card className="group relative w-full bg-transparent">
+		<Card className="group relative w-full bg-transparent overflow-auto">
 			<CardHeader>
 				<CardTitle className="flex items-start justify-between">
 					<div className="flex flex-col gap-2">
@@ -128,9 +146,8 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 							Select the source of your code
 						</p>
 					</div>
-					<div className="hidden space-y-1 text-sm font-normal md:flex flex-row items-center gap-2">
+					<div className="hidden md:flex absolute top-0 right-0">
 						<ShowConvertedCompose composeId={composeId} />
-						<GitBranch className="size-6 text-muted-foreground" />
 					</div>
 				</CardTitle>
 			</CardHeader>
@@ -142,7 +159,7 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 						setSab(e as TabState);
 					}}
 				>
-					<div className="flex flex-row items-center justify-between w-full overflow-auto">
+					<div className="flex flex-row items-center justify-between w-fit overflow-auto">
 						<TabsList className="flex gap-4 justify-start bg-transparent">
 							<TabsTrigger
 								value="github"
@@ -151,6 +168,7 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 								<GithubIcon className="size-4 text-current fill-current" />
 								GitHub
 							</TabsTrigger>
+
 							<TabsTrigger
 								value="gitlab"
 								className="rounded-none border-b-2 gap-2 border-b-transparent data-[state=active]:border-b-2 data-[state=active]:border-b-border"
@@ -158,6 +176,7 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 								<GitlabIcon className="size-4 text-current fill-current" />
 								GitLab
 							</TabsTrigger>
+
 							<TabsTrigger
 								value="bitbucket"
 								className="rounded-none border-b-2 gap-2 border-b-transparent data-[state=active]:border-b-2 data-[state=active]:border-b-border"
@@ -165,12 +184,15 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 								<BitbucketIcon className="size-4 text-current fill-current" />
 								Bitbucket
 							</TabsTrigger>
+
 							<TabsTrigger
 								value="gitea"
 								className="rounded-none border-b-2 gap-2 border-b-transparent data-[state=active]:border-b-2 data-[state=active]:border-b-border"
 							>
-								<GiteaIcon className="size-4 text-current fill-current" /> Gitea
+								<GiteaIcon className="size-4 text-current fill-current" />
+								Gitea
 							</TabsTrigger>
+
 							<TabsTrigger
 								value="git"
 								className="rounded-none border-b-2 gap-2 border-b-transparent data-[state=active]:border-b-2 data-[state=active]:border-b-border"
@@ -178,6 +200,7 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 								<GitIcon />
 								Git
 							</TabsTrigger>
+
 							<TabsTrigger
 								value="raw"
 								className="rounded-none border-b-2 gap-2 border-b-transparent data-[state=active]:border-b-2 data-[state=active]:border-b-border"
@@ -208,46 +231,7 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 							</div>
 						)}
 					</TabsContent>
-					<TabsContent value="gitlab" className="w-full p-2">
-						{gitlabProviders && gitlabProviders?.length > 0 ? (
-							<SaveGitlabProviderCompose composeId={composeId} />
-						) : (
-							<div className="flex flex-col items-center gap-3 min-h-[25vh] justify-center">
-								<GitlabIcon className="size-8 text-muted-foreground" />
-								<span className="text-base text-muted-foreground">
-									To deploy using GitLab, you need to configure your account
-									first. Please, go to{" "}
-									<Link
-										href="/dashboard/settings/git-providers"
-										className="text-foreground"
-									>
-										Settings
-									</Link>{" "}
-									to do so.
-								</span>
-							</div>
-						)}
-					</TabsContent>
-					<TabsContent value="bitbucket" className="w-full p-2">
-						{bitbucketProviders && bitbucketProviders?.length > 0 ? (
-							<SaveBitbucketProviderCompose composeId={composeId} />
-						) : (
-							<div className="flex flex-col items-center gap-3 min-h-[25vh] justify-center">
-								<BitbucketIcon className="size-8 text-muted-foreground" />
-								<span className="text-base text-muted-foreground">
-									To deploy using Bitbucket, you need to configure your account
-									first. Please, go to{" "}
-									<Link
-										href="/dashboard/settings/git-providers"
-										className="text-foreground"
-									>
-										Settings
-									</Link>{" "}
-									to do so.
-								</span>
-							</div>
-						)}
-					</TabsContent>
+
 					<TabsContent value="gitea" className="w-full p-2">
 						{giteaProviders && giteaProviders?.length > 0 ? (
 							<SaveGiteaProviderCompose composeId={composeId} />
@@ -268,6 +252,49 @@ export const ShowProviderFormCompose = ({ composeId }: Props) => {
 							</div>
 						)}
 					</TabsContent>
+
+					<TabsContent value="gitlab" className="w-full p-2">
+						{gitlabProviders && gitlabProviders?.length > 0 ? (
+							<SaveGitlabProviderCompose composeId={composeId} />
+						) : (
+							<div className="flex flex-col items-center gap-3 min-h-[25vh] justify-center">
+								<GitlabIcon className="size-8 text-muted-foreground" />
+								<span className="text-base text-muted-foreground">
+									To deploy using GitLab, you need to configure your account
+									first. Please, go to{" "}
+									<Link
+										href="/dashboard/settings/git-providers"
+										className="text-foreground"
+									>
+										Settings
+									</Link>{" "}
+									to do so.
+								</span>
+							</div>
+						)}
+					</TabsContent>
+
+					<TabsContent value="bitbucket" className="w-full p-2">
+						{bitbucketProviders && bitbucketProviders?.length > 0 ? (
+							<SaveBitbucketProviderCompose composeId={composeId} />
+						) : (
+							<div className="flex flex-col items-center gap-3 min-h-[25vh] justify-center">
+								<BitbucketIcon className="size-8 text-muted-foreground" />
+								<span className="text-base text-muted-foreground">
+									To deploy using Bitbucket, you need to configure your account
+									first. Please, go to{" "}
+									<Link
+										href="/dashboard/settings/git-providers"
+										className="text-foreground"
+									>
+										Settings
+									</Link>{" "}
+									to do so.
+								</span>
+							</div>
+						)}
+					</TabsContent>
+
 					<TabsContent value="git" className="w-full p-2">
 						<SaveGitProviderCompose composeId={composeId} />
 					</TabsContent>

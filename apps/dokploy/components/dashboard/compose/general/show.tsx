@@ -28,7 +28,7 @@ export const ShowGeneralCompose = ({ composeId }: Props) => {
 				<CardHeader>
 					<div className="flex flex-row gap-2 justify-between flex-wrap">
 						<CardTitle className="text-xl">Deploy Settings</CardTitle>
-						<Badge>
+						<Badge className="select-none">
 							{data?.composeType === "docker-compose" ? "Compose" : "Stack"}
 						</Badge>
 					</div>

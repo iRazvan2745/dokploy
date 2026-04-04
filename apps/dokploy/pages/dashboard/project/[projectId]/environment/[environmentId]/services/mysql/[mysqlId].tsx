@@ -6,7 +6,6 @@ import type {
 	InferGetServerSidePropsType,
 } from "next";
 import Head from "next/head";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { type ReactElement, useState } from "react";
 import superjson from "superjson";
@@ -23,7 +22,7 @@ import { UpdateMysql } from "@/components/dashboard/mysql/update-mysql";
 import { ShowDatabaseAdvancedSettings } from "@/components/dashboard/shared/show-database-advanced-settings";
 import { MysqlIcon } from "@/components/icons/data-tools-icons";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
-import { BreadcrumbSidebar } from "@/components/shared/breadcrumb-sidebar";
+import { AdvanceBreadcrumb } from "@/components/shared/advance-breadcrumb";
 import { StatusTooltip } from "@/components/shared/status-tooltip";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -45,6 +44,7 @@ import { UseKeyboardNav } from "@/hooks/use-keyboard-nav";
 import { cn } from "@/lib/utils";
 import { appRouter } from "@/server/api/root";
 import { api } from "@/utils/api";
+import { useWhitelabeling } from "@/utils/hooks/use-whitelabeling";
 
 type TabState = "projects" | "monitoring" | "settings" | "backups" | "advanced";
 
@@ -56,38 +56,35 @@ const MySql = (
 	const router = useRouter();
 	const { projectId, environmentId } = router.query;
 	const [tab, setSab] = useState<TabState>(activeTab);
-	const { data } = api.mysql.one.useQuery({ mysqlId });
+	const { data, refetch } = api.mysql.one.useQuery({ mysqlId });
 	const { data: auth } = api.user.get.useQuery();
+	const { data: permissions } = api.user.getPermissions.useQuery();
 
 	const { data: isCloud } = api.settings.isCloud.useQuery();
+	const { data: environments } = api.environment.byProjectId.useQuery({
+		projectId: data?.environment?.projectId || "",
+	});
+	const { config: whitelabeling } = useWhitelabeling();
+	const appName = whitelabeling?.appName || "Dokploy";
+	const environmentDropdownItems =
+		environments?.map((env) => ({
+			name: env.name,
+			href: `/dashboard/project/${projectId}/environment/${env.environmentId}`,
+		})) || [];
 
 	return (
 		<div className="pb-10">
 			<UseKeyboardNav forPage="mysql" />
-			<BreadcrumbSidebar
-				list={[
-					{ name: "Projects", href: "/dashboard/projects" },
-					{
-						name: data?.environment?.project?.name || "",
-					},
-					{
-						name: data?.environment?.name || "",
-						href: `/dashboard/project/${projectId}/environment/${environmentId}`,
-					},
-					{
-						name: data?.name || "",
-					},
-				]}
-			/>
+			<AdvanceBreadcrumb />
 			<div className="flex flex-col gap-4">
 				<Head>
 					<title>
 						Database: {data?.name} - {data?.environment?.project?.name} |
-						Dokploy
+						{appName}
 					</title>
 				</Head>
 				<div className="w-full">
-					<Card className="h-full bg-sidebar  p-2.5 rounded-xl w-full">
+					<Card className="h-full bg-sidebar p-0 border-none -mx-4 -mt-8 w-[calc(100svw-19.5rem)] rounded-xl">
 						<div className="rounded-xl bg-background shadow-md ">
 							<CardHeader className="flex flex-row justify-between items-center">
 								<div className="flex flex-col">
@@ -136,9 +133,8 @@ const MySql = (
 														side="top"
 													>
 														<span>
-															You cannot, deploy this application because the
-															server is inactive, please upgrade your plan to
-															add more servers.
+															You cannot deploy this service while its server is
+															inactive.
 														</span>
 													</TooltipContent>
 												</Tooltip>
@@ -147,8 +143,10 @@ const MySql = (
 									</div>
 
 									<div className="flex flex-row gap-2 justify-end">
-										<UpdateMysql mysqlId={mysqlId} />
-										{(auth?.role === "owner" || auth?.canDeleteServices) && (
+										{permissions?.service.create && (
+											<UpdateMysql mysqlId={mysqlId} />
+										)}
+										{permissions?.service.delete && (
 											<DeleteService id={mysqlId} type="mysql" />
 										)}
 									</div>
@@ -161,18 +159,12 @@ const MySql = (
 											<ServerOff className="size-10 text-muted-foreground self-center" />
 											<span className="text-center text-base text-muted-foreground">
 												This service is hosted on the server {data.server.name},
-												but this server has been disabled because your current
-												plan doesn't include enough servers. Please purchase
-												more servers to regain access to this application.
+												but that server is currently inactive. Reactivate the
+												server to regain access to this service.
 											</span>
 											<span className="text-center text-base text-muted-foreground">
-												Go to{" "}
-												<Link
-													href="/dashboard/settings/billing"
-													className="text-primary"
-												>
-													Billing
-												</Link>
+												This server must be reactivated before you can access
+												this service.
 											</span>
 										</div>
 									</div>
@@ -200,17 +192,24 @@ const MySql = (
 												)}
 											>
 												<TabsTrigger value="general">General</TabsTrigger>
-												<TabsTrigger value="environment">
-													Environment
-												</TabsTrigger>
-												<TabsTrigger value="logs">Logs</TabsTrigger>
-												{((data?.serverId && isCloud) || !data?.server) && (
-													<TabsTrigger value="monitoring">
-														Monitoring
+												{permissions?.envVars.read && (
+													<TabsTrigger value="environment">
+														Environment
 													</TabsTrigger>
 												)}
+												{permissions?.logs.read && (
+													<TabsTrigger value="logs">Logs</TabsTrigger>
+												)}
+												{permissions?.monitoring.read &&
+													((data?.serverId && isCloud) || !data?.server) && (
+														<TabsTrigger value="monitoring">
+															Monitoring
+														</TabsTrigger>
+													)}
 												<TabsTrigger value="backups">Backups</TabsTrigger>
-												<TabsTrigger value="advanced">Advanced</TabsTrigger>
+												{permissions?.service.create && (
+													<TabsTrigger value="advanced">Advanced</TabsTrigger>
+												)}
 											</TabsList>
 										</div>
 
@@ -221,40 +220,47 @@ const MySql = (
 												<ShowExternalMysqlCredentials mysqlId={mysqlId} />
 											</div>
 										</TabsContent>
-										<TabsContent value="environment" className="w-full">
-											<div className="flex flex-col gap-4 pt-2.5">
-												<ShowEnvironment id={mysqlId} type="mysql" />
-											</div>
-										</TabsContent>
-										<TabsContent value="monitoring">
-											<div className="pt-2.5">
-												<div className="flex flex-col gap-4 border rounded-lg p-6">
-													{data?.serverId && isCloud ? (
-														<ContainerPaidMonitoring
-															appName={data?.appName || ""}
-															baseUrl={`${data?.serverId ? `http://${data?.server?.ipAddress}:${data?.server?.metricsConfig?.server?.port}` : "http://localhost:4500"}`}
-															token={
-																data?.server?.metricsConfig?.server?.token || ""
-															}
-														/>
-													) : (
-														<>
-															<ContainerFreeMonitoring
-																appName={data?.appName || ""}
-															/>
-														</>
-													)}
+										{permissions?.envVars.read && (
+											<TabsContent value="environment" className="w-full">
+												<div className="flex flex-col gap-4 pt-2.5">
+													<ShowEnvironment id={mysqlId} type="mysql" />
 												</div>
-											</div>
-										</TabsContent>
-										<TabsContent value="logs">
-											<div className="flex flex-col gap-4  pt-2.5">
-												<ShowDockerLogs
-													serverId={data?.serverId || ""}
-													appName={data?.appName || ""}
-												/>
-											</div>
-										</TabsContent>
+											</TabsContent>
+										)}
+										{permissions?.monitoring.read && (
+											<TabsContent value="monitoring">
+												<div className="pt-2.5">
+													<div className="flex flex-col gap-4 border rounded-lg p-6">
+														{data?.serverId && isCloud ? (
+															<ContainerPaidMonitoring
+																appName={data?.appName || ""}
+																baseUrl={`${data?.serverId ? `http://${data?.server?.ipAddress}:${data?.server?.metricsConfig?.server?.port}` : "http://localhost:4500"}`}
+																token={
+																	data?.server?.metricsConfig?.server?.token ||
+																	""
+																}
+															/>
+														) : (
+															<>
+																<ContainerFreeMonitoring
+																	appName={data?.appName || ""}
+																/>
+															</>
+														)}
+													</div>
+												</div>
+											</TabsContent>
+										)}
+										{permissions?.logs.read && (
+											<TabsContent value="logs">
+												<div className="flex flex-col gap-4  pt-2.5">
+													<ShowDockerLogs
+														serverId={data?.serverId || ""}
+														appName={data?.appName || ""}
+													/>
+												</div>
+											</TabsContent>
+										)}
 										<TabsContent value="backups">
 											<div className="flex flex-col gap-4 pt-2.5">
 												<ShowBackups
@@ -264,14 +270,18 @@ const MySql = (
 												/>
 											</div>
 										</TabsContent>
-										<TabsContent value="advanced">
-											<div className="flex flex-col gap-4 pt-2.5">
-												<ShowDatabaseAdvancedSettings
-													id={mysqlId}
-													type="mysql"
-												/>
-											</div>
-										</TabsContent>
+										{permissions?.service.create && (
+											<TabsContent value="advanced">
+												<div className="flex flex-col gap-4 pt-2.5">
+													<ShowDatabaseAdvancedSettings
+														id={mysqlId}
+														type="mysql"
+														serviceName={data?.name || data?.appName || "MySQL"}
+														currentServerId={data?.serverId}
+													/>
+												</div>
+											</TabsContent>
+										)}
 									</Tabs>
 								)}
 							</CardContent>

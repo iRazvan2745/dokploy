@@ -1,17 +1,40 @@
 import {
-	findUserById,
+	getWebServerSettings,
 	IS_CLOUD,
+	runEnterpriseCheck,
 	setupWebMonitoring,
-	updateUser,
+	updateWebServerSettings,
 } from "@dokploy/server";
 import { TRPCError } from "@trpc/server";
 import { apiUpdateWebServerMonitoring } from "@/server/db/schema";
 import { adminProcedure, createTRPCRouter } from "../trpc";
 
 export const adminRouter = createTRPCRouter({
+	runEnterpriseCheck: adminProcedure.mutation(async ({ ctx }) => {
+		try {
+			if (ctx.user.role !== "owner") {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You are not authorized to run the enterprise check",
+				});
+			}
+
+			await runEnterpriseCheck();
+
+			return { success: true };
+		} catch (error) {
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message:
+					error instanceof Error
+						? error.message
+						: "Failed to run enterprise check",
+			});
+		}
+	}),
 	setupMonitoring: adminProcedure
 		.input(apiUpdateWebServerMonitoring)
-		.mutation(async ({ input, ctx }) => {
+		.mutation(async ({ input }) => {
 			try {
 				if (IS_CLOUD) {
 					throw new TRPCError({
@@ -19,15 +42,8 @@ export const adminRouter = createTRPCRouter({
 						message: "Feature disabled on cloud",
 					});
 				}
-				const user = await findUserById(ctx.user.ownerId);
-				if (user.id !== ctx.user.ownerId) {
-					throw new TRPCError({
-						code: "UNAUTHORIZED",
-						message: "You are not authorized to setup the monitoring",
-					});
-				}
 
-				await updateUser(user.id, {
+				await updateWebServerSettings({
 					metricsConfig: {
 						server: {
 							type: "Dokploy",
@@ -52,8 +68,9 @@ export const adminRouter = createTRPCRouter({
 					},
 				});
 
-				const currentServer = await setupWebMonitoring(user.id);
-				return currentServer;
+				await setupWebMonitoring();
+				const settings = await getWebServerSettings();
+				return settings;
 			} catch (error) {
 				throw error;
 			}

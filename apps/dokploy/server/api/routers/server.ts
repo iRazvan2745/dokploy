@@ -3,8 +3,6 @@ import {
 	defaultCommand,
 	deleteServer,
 	findServerById,
-	findServersByUserId,
-	findUserById,
 	getPublicIpWithFallback,
 	haveActiveServices,
 	IS_CLOUD,
@@ -15,13 +13,17 @@ import {
 	setupMonitoring,
 	updateServerById,
 } from "@dokploy/server";
+import { db } from "@dokploy/server/db";
 import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { and, desc, eq, getTableColumns, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { updateServersBasedOnQuantity } from "@/pages/api/stripe/webhook";
-import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { db } from "@/server/db";
+import {
+	createTRPCRouter,
+	protectedProcedure,
+	withPermission,
+} from "@/server/api/trpc";
+import { audit } from "@/server/api/utils/audit";
 import {
 	apiCreateServer,
 	apiFindOneServer,
@@ -40,22 +42,20 @@ import {
 } from "@/server/db/schema";
 
 export const serverRouter = createTRPCRouter({
-	create: protectedProcedure
+	create: withPermission("server", "create")
 		.input(apiCreateServer)
 		.mutation(async ({ ctx, input }) => {
 			try {
-				const user = await findUserById(ctx.user.ownerId);
-				const servers = await findServersByUserId(user.id);
-				if (IS_CLOUD && servers.length >= user.serversQuantity) {
-					throw new TRPCError({
-						code: "BAD_REQUEST",
-						message: "You cannot create more servers",
-					});
-				}
 				const project = await createServer(
 					input,
 					ctx.session.activeOrganizationId,
 				);
+				await audit(ctx, {
+					action: "create",
+					resourceType: "server",
+					resourceId: project.serverId,
+					resourceName: project.name,
+				});
 				return project;
 			} catch (error) {
 				throw new TRPCError({
@@ -66,7 +66,7 @@ export const serverRouter = createTRPCRouter({
 			}
 		}),
 
-	one: protectedProcedure
+	one: withPermission("server", "read")
 		.input(apiFindOneServer)
 		.query(async ({ input, ctx }) => {
 			const server = await findServerById(input.serverId);
@@ -79,12 +79,14 @@ export const serverRouter = createTRPCRouter({
 
 			return server;
 		}),
-	getDefaultCommand: protectedProcedure
+	getDefaultCommand: withPermission("server", "read")
 		.input(apiFindOneServer)
-		.query(async () => {
-			return defaultCommand();
+		.query(async ({ input }) => {
+			const server = await findServerById(input.serverId);
+			const isBuildServer = server.serverType === "build";
+			return defaultCommand(isBuildServer);
 		}),
-	all: protectedProcedure.query(async ({ ctx }) => {
+	all: withPermission("server", "read").query(async ({ ctx }) => {
 		const result = await db
 			.select({
 				...getTableColumns(server),
@@ -116,7 +118,7 @@ export const serverRouter = createTRPCRouter({
 
 		return servers.length ?? 0;
 	}),
-	withSSHKey: protectedProcedure.query(async ({ ctx }) => {
+	withSSHKey: withPermission("server", "read").query(async ({ ctx }) => {
 		const result = await db.query.server.findMany({
 			orderBy: desc(server.createdAt),
 			where: IS_CLOUD
@@ -124,15 +126,35 @@ export const serverRouter = createTRPCRouter({
 						isNotNull(server.sshKeyId),
 						eq(server.organizationId, ctx.session.activeOrganizationId),
 						eq(server.serverStatus, "active"),
+						eq(server.serverType, "deploy"),
 					)
 				: and(
 						isNotNull(server.sshKeyId),
 						eq(server.organizationId, ctx.session.activeOrganizationId),
+						eq(server.serverType, "deploy"),
 					),
 		});
 		return result;
 	}),
-	setup: protectedProcedure
+	buildServers: withPermission("server", "read").query(async ({ ctx }) => {
+		const result = await db.query.server.findMany({
+			orderBy: desc(server.createdAt),
+			where: IS_CLOUD
+				? and(
+						isNotNull(server.sshKeyId),
+						eq(server.organizationId, ctx.session.activeOrganizationId),
+						eq(server.serverStatus, "active"),
+						eq(server.serverType, "build"),
+					)
+				: and(
+						isNotNull(server.sshKeyId),
+						eq(server.organizationId, ctx.session.activeOrganizationId),
+						eq(server.serverType, "build"),
+					),
+		});
+		return result;
+	}),
+	setup: withPermission("server", "create")
 		.input(apiFindOneServer)
 		.mutation(async ({ input, ctx }) => {
 			try {
@@ -144,12 +166,18 @@ export const serverRouter = createTRPCRouter({
 					});
 				}
 				const currentServer = await serverSetup(input.serverId);
+				await audit(ctx, {
+					action: "update",
+					resourceType: "server",
+					resourceId: input.serverId,
+					resourceName: server.name,
+				});
 				return currentServer;
 			} catch (error) {
 				throw error;
 			}
 		}),
-	setupWithLogs: protectedProcedure
+	setupWithLogs: withPermission("server", "create")
 		.meta({
 			openapi: {
 				path: "/deploy/server-with-logs",
@@ -177,7 +205,7 @@ export const serverRouter = createTRPCRouter({
 				throw error;
 			}
 		}),
-	validate: protectedProcedure
+	validate: withPermission("server", "read")
 		.input(apiFindOneServer)
 		.query(async ({ input, ctx }) => {
 			try {
@@ -198,6 +226,10 @@ export const serverRouter = createTRPCRouter({
 						enabled: boolean;
 						version: string;
 					};
+					rsync: {
+						enabled: boolean;
+						version: string;
+					};
 					nixpacks: {
 						enabled: boolean;
 						version: string;
@@ -213,6 +245,8 @@ export const serverRouter = createTRPCRouter({
 					isDokployNetworkInstalled: boolean;
 					isSwarmInstalled: boolean;
 					isMainDirectoryInstalled: boolean;
+					privilegeMode: string;
+					dockerGroupMember: boolean;
 				};
 			} catch (error) {
 				throw new TRPCError({
@@ -223,7 +257,7 @@ export const serverRouter = createTRPCRouter({
 			}
 		}),
 
-	security: protectedProcedure
+	security: withPermission("server", "read")
 		.input(apiFindOneServer)
 		.query(async ({ input, ctx }) => {
 			try {
@@ -273,7 +307,7 @@ export const serverRouter = createTRPCRouter({
 				});
 			}
 		}),
-	setupMonitoring: protectedProcedure
+	setupMonitoring: withPermission("server", "create")
 		.input(apiUpdateServerMonitoring)
 		.mutation(async ({ input, ctx }) => {
 			try {
@@ -310,22 +344,21 @@ export const serverRouter = createTRPCRouter({
 					},
 				});
 				const currentServer = await setupMonitoring(input.serverId);
+				await audit(ctx, {
+					action: "update",
+					resourceType: "server",
+					resourceId: input.serverId,
+					resourceName: server.name,
+				});
 				return currentServer;
 			} catch (error) {
 				throw error;
 			}
 		}),
-	remove: protectedProcedure
+	remove: withPermission("server", "delete")
 		.input(apiRemoveServer)
 		.mutation(async ({ input, ctx }) => {
 			try {
-				const server = await findServerById(input.serverId);
-				if (server.organizationId !== ctx.session.activeOrganizationId) {
-					throw new TRPCError({
-						code: "UNAUTHORIZED",
-						message: "You are not authorized to delete this server",
-					});
-				}
 				const activeServers = await haveActiveServices(input.serverId);
 
 				if (activeServers) {
@@ -335,21 +368,21 @@ export const serverRouter = createTRPCRouter({
 					});
 				}
 				const currentServer = await findServerById(input.serverId);
+				await audit(ctx, {
+					action: "delete",
+					resourceType: "server",
+					resourceId: currentServer.serverId,
+					resourceName: currentServer.name,
+				});
 				await removeDeploymentsByServerId(currentServer);
 				await deleteServer(input.serverId);
-
-				if (IS_CLOUD) {
-					const admin = await findUserById(ctx.user.ownerId);
-
-					await updateServersBasedOnQuantity(admin.id, admin.serversQuantity);
-				}
 
 				return currentServer;
 			} catch (error) {
 				throw error;
 			}
 		}),
-	update: protectedProcedure
+	update: withPermission("server", "create")
 		.input(apiUpdateServer)
 		.mutation(async ({ input, ctx }) => {
 			try {
@@ -371,6 +404,12 @@ export const serverRouter = createTRPCRouter({
 					...input,
 				});
 
+				await audit(ctx, {
+					action: "update",
+					resourceType: "server",
+					resourceId: input.serverId,
+					resourceName: server.name,
+				});
 				return currentServer;
 			} catch (error) {
 				throw error;
@@ -383,7 +422,16 @@ export const serverRouter = createTRPCRouter({
 		const ip = await getPublicIpWithFallback();
 		return ip;
 	}),
-	getServerMetrics: protectedProcedure
+	getServerTime: protectedProcedure.query(() => {
+		if (IS_CLOUD) {
+			return null;
+		}
+		return {
+			time: new Date(),
+			timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+		};
+	}),
+	getServerMetrics: withPermission("monitoring", "read")
 		.input(
 			z.object({
 				url: z.string(),

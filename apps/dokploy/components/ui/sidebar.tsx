@@ -82,7 +82,7 @@ const SidebarProvider = React.forwardRef<
 
 				_setOpen(value);
 
-				// This sets the cookie to keep the sidebar state.
+				// biome-ignore lint/suspicious/noDocumentCookie: This sets the cookie to keep the sidebar state.
 				document.cookie = `${SIDEBAR_COOKIE_NAME}=${open}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
 			},
 			[setOpenProp, open],
@@ -213,7 +213,9 @@ const Sidebar = React.forwardRef<
 						}
 						side={side}
 					>
-						<div className="flex h-full w-full flex-col">{children}</div>
+						<div className="flex h-full w-full flex-col overflow-hidden">
+							{children}
+						</div>
 					</SheetContent>
 				</Sheet>
 			);
@@ -412,7 +414,7 @@ const SidebarContent = React.forwardRef<
 			ref={ref}
 			data-sidebar="content"
 			className={cn(
-				"flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+				"flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-y-auto",
 				className,
 			)}
 			{...props}
@@ -447,7 +449,7 @@ const SidebarGroupLabel = React.forwardRef<
 			ref={ref}
 			data-sidebar="group-label"
 			className={cn(
-				"duration-200 flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 outline-none ring-sidebar-ring transition-[margin,opa] ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+				"border-b bg-sidebar/60 backdrop-blur-lg z-50 -mx-2 border-t mb-2 -mt-2 duration-200 flex h-8 shrink-0 items-center px-2 text-xs font-medium text-sidebar-foreground/70 outline-none ring-sidebar-ring transition-[margin,opa] ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
 				"group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
 				className,
 			)}
