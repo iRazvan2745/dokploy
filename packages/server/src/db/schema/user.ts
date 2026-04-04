@@ -1,11 +1,10 @@
 import { paths } from "@dokploy/server/constants";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
 	pgTable,
 	text,
 	timestamp,
-	unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { nanoid } from "nanoid";
@@ -63,25 +62,10 @@ export const user = pgTable("user", {
 		.notNull()
 		.default(false),
 	trustedOrigins: text("trustedOrigins").array(),
+	bookmarkedTemplates: text("bookmarkedTemplates")
+		.array()
+		.default(sql`ARRAY[]::text[]`),
 });
-
-export const userTemplateBookmarks = pgTable(
-	"user_template_bookmarks",
-	{
-		id: text("id")
-			.notNull()
-			.primaryKey()
-			.$defaultFn(() => nanoid()),
-		userId: text("userId")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		templateId: text("templateId").notNull(),
-		createdAt: timestamp("createdAt").notNull().defaultNow(),
-	},
-	(table) => ({
-		uniqueUserTemplate: unique().on(table.userId, table.templateId),
-	}),
-);
 
 export const usersRelations = relations(user, ({ one, many }) => ({
 	account: one(account, {
@@ -94,18 +78,7 @@ export const usersRelations = relations(user, ({ one, many }) => ({
 	ssoProviders: many(ssoProvider),
 	backups: many(backups),
 	schedules: many(schedules),
-	templateBookmarks: many(userTemplateBookmarks),
 }));
-
-export const userTemplateBookmarksRelations = relations(
-	userTemplateBookmarks,
-	({ one }) => ({
-		user: one(user, {
-			fields: [userTemplateBookmarks.userId],
-			references: [user.id],
-		}),
-	}),
-);
 
 const createSchema = createInsertSchema(user, {
 	id: z.string().min(1),
@@ -113,6 +86,7 @@ const createSchema = createInsertSchema(user, {
 }).omit({
 	role: true,
 	trustedOrigins: true,
+	bookmarkedTemplates: true,
 	isValidEnterpriseLicense: true,
 });
 
