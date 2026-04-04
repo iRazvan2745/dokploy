@@ -9,6 +9,7 @@ import {
 	findEnvironmentById,
 	findPostgresById,
 	findProjectById,
+	getContainerLogs,
 	getMountPath,
 	getServiceContainerCommand,
 	IS_CLOUD,
@@ -20,19 +21,20 @@ import {
 	stopService,
 	stopServiceRemote,
 	updatePostgresById,
+	getAccessibleServerIds,
 } from "@dokploy/server";
+import { db } from "@dokploy/server/db";
 import {
 	addNewService,
 	checkServiceAccess,
 	checkServicePermissionAndAccess,
 	findMemberByUserId,
 } from "@dokploy/server/services/permission";
-import { db } from "@dokploy/server/db";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { audit } from "@/server/api/utils/audit";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+import { audit } from "@/server/api/utils/audit";
 import {
 	apiChangePostgresStatus,
 	apiCreatePostgres,
@@ -43,9 +45,12 @@ import {
 	apiSaveEnvironmentVariablesPostgres,
 	apiSaveExternalPortPostgres,
 	apiUpdatePostgres,
+	DATABASE_PASSWORD_MESSAGE,
+	DATABASE_PASSWORD_REGEX,
+	environments,
 	postgres as postgresTable,
+	projects,
 } from "@/server/db/schema";
-import { environments, projects } from "@/server/db/schema";
 import { cancelJobs } from "@/server/utils/backup";
 
 export const postgresRouter = createTRPCRouter({
@@ -71,6 +76,17 @@ export const postgresRouter = createTRPCRouter({
 						message: "You are not authorized to access this project",
 					});
 				}
+
+				if (input.serverId) {
+					const accessibleIds = await getAccessibleServerIds(ctx.session);
+					if (!accessibleIds.has(input.serverId)) {
+						throw new TRPCError({
+							code: "UNAUTHORIZED",
+							message: "You are not authorized to access this server",
+						});
+					}
+				}
+
 				const newPostgres = await createPostgres({
 					...input,
 				});
@@ -402,7 +418,9 @@ export const postgresRouter = createTRPCRouter({
 		.input(
 			z.object({
 				postgresId: z.string().min(1),
-				password: z.string().min(1),
+				password: z.string().min(1).regex(DATABASE_PASSWORD_REGEX, {
+					message: DATABASE_PASSWORD_MESSAGE,
+				}),
 			}),
 		)
 		.mutation(async ({ input, ctx }) => {
@@ -596,5 +614,40 @@ export const postgresRouter = createTRPCRouter({
 					.where(where),
 			]);
 			return { items, total: countResult[0]?.count ?? 0 };
+		}),
+
+	readLogs: protectedProcedure
+		.input(
+			apiFindOnePostgres.extend({
+				tail: z.number().int().min(1).max(10000).default(100),
+				since: z
+					.string()
+					.regex(/^(all|\d+[smhd])$/, "Invalid since format")
+					.default("all"),
+				search: z
+					.string()
+					.regex(/^[a-zA-Z0-9 ._-]{0,500}$/)
+					.optional(),
+			}),
+		)
+		.query(async ({ input, ctx }) => {
+			await checkServiceAccess(ctx, input.postgresId, "read");
+			const postgres = await findPostgresById(input.postgresId);
+			if (
+				postgres.environment.project.organizationId !==
+				ctx.session.activeOrganizationId
+			) {
+				throw new TRPCError({
+					code: "UNAUTHORIZED",
+					message: "You are not authorized to access this Postgres",
+				});
+			}
+			return await getContainerLogs(
+				postgres.appName,
+				input.tail,
+				input.since,
+				input.search,
+				postgres.serverId,
+			);
 		}),
 });
