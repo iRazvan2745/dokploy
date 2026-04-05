@@ -10,7 +10,6 @@ import {
 	initializeNetwork,
 	initSchedules,
 	initVolumeBackupsCronJobs,
-	runEnterpriseCheck,
 	sendDokployRestartNotifications,
 	setupDirectories,
 } from "@dokploy/server";
@@ -57,6 +56,8 @@ void app.prepare().then(async () => {
 			setupDockerStatsMonitoringSocketServer(server);
 		}
 
+		server.listen(PORT, HOST);
+		console.log(`Server Started on: http://${HOST}:${PORT}`);
 		if (process.env.NODE_ENV === "production" && !IS_CLOUD) {
 			createDefaultMiddlewares();
 			await initializeNetwork();
@@ -66,10 +67,6 @@ void app.prepare().then(async () => {
 			await initVolumeBackupsCronJobs();
 			await sendDokployRestartNotifications();
 		}
-
-		server.listen(PORT, HOST);
-		console.log(`Server Started on: http://${HOST}:${PORT}`);
-		await runEnterpriseCheck();
 		await initEnterpriseBackupCronJobs();
 
 		if (!IS_CLOUD) {
