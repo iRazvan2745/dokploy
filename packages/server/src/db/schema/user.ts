@@ -2,6 +2,7 @@ import { paths } from "@dokploy/server/constants";
 import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
+	integer,
 	pgTable,
 	text,
 	timestamp,
@@ -61,6 +62,10 @@ export const user = pgTable("user", {
 	isValidEnterpriseLicense: boolean("isValidEnterpriseLicense")
 		.notNull()
 		.default(false),
+	stripeCustomerId: text("stripeCustomerId"),
+	stripeSubscriptionId: text("stripeSubscriptionId"),
+	serversQuantity: integer("serversQuantity").notNull().default(0),
+	isEnterpriseCloud: boolean("isEnterpriseCloud").notNull().default(false),
 	trustedOrigins: text("trustedOrigins").array(),
 	bookmarkedTemplates: text("bookmarkedTemplates")
 		.array()
@@ -88,6 +93,7 @@ const createSchema = createInsertSchema(user, {
 	trustedOrigins: true,
 	bookmarkedTemplates: true,
 	isValidEnterpriseLicense: true,
+	isEnterpriseCloud: true,
 });
 
 export const apiCreateUserInvitation = createSchema.pick({}).extend({
