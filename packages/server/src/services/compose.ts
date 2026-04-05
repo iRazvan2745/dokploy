@@ -258,15 +258,22 @@ export const deployCompose = async ({
 				await execAsync(commandWithLog);
 			}
 		}
-		command = "set -e;";
 		if (compose.sourceType !== "raw") {
+			command = "set -e;";
 			command += await generateApplyPatchesCommand({
 				id: compose.composeId,
 				type: "compose",
 				serverId: compose.serverId,
 			});
+			commandWithLog = `(${command}) >> ${deployment.logPath} 2>&1`;
+			if (compose.serverId) {
+				await execAsyncRemote(compose.serverId, commandWithLog);
+			} else {
+				await execAsync(commandWithLog);
+			}
 		}
 
+		command = "set -e;";
 		command += await getBuildComposeCommand(entity);
 		commandWithLog = `(${command}) >> ${deployment.logPath} 2>&1`;
 		if (compose.serverId) {
@@ -368,6 +375,23 @@ export const rebuildCompose = async ({
 		} else {
 			await execAsync(commandWithLog);
 		}
+
+		if (compose.sourceType !== "raw") {
+			command = "set -e;";
+			command += await generateApplyPatchesCommand({
+				id: compose.composeId,
+				type: "compose",
+				serverId: compose.serverId,
+			});
+			commandWithLog = `(${command}) >> ${deployment.logPath} 2>&1`;
+			if (compose.serverId) {
+				await execAsyncRemote(compose.serverId, commandWithLog);
+			} else {
+				await execAsync(commandWithLog);
+			}
+		}
+
+		command = "set -e;";
 		command += await getBuildComposeCommand(compose);
 		commandWithLog = `(${command}) >> ${deployment.logPath} 2>&1`;
 		if (compose.serverId) {
