@@ -1,3 +1,3 @@
-ALTER TABLE "user" DROP COLUMN "stripeCustomerId";--> statement-breakpoint
-ALTER TABLE "user" DROP COLUMN "stripeSubscriptionId";--> statement-breakpoint
-ALTER TABLE "user" DROP COLUMN "serversQuantity";
+ALTER TABLE "user" DROP COLUMN IF EXISTS "stripeCustomerId";--> statement-breakpoint
+ALTER TABLE "user" DROP COLUMN IF EXISTS "stripeSubscriptionId";--> statement-breakpoint
+ALTER TABLE "user" DROP COLUMN IF EXISTS "serversQuantity";

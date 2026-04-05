@@ -60,6 +60,7 @@
 		"@dokploy/server": "workspace:*",
 		"@dokploy/trpc-openapi": "0.0.18",
 		"@faker-js/faker": "^8.4.1",
+		"@hello-pangea/dnd": "^18.0.1",
 		"@hookform/resolvers": "^5.2.2",
 		"@octokit/auth-app": "^6.1.4",
 		"@octokit/webhooks": "^13.9.1",

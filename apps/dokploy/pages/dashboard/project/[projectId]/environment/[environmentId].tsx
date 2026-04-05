@@ -1,5 +1,11 @@
 import type { findEnvironmentById } from "@dokploy/server";
 import { validateRequest } from "@dokploy/server/lib/auth";
+import {
+	DragDropContext,
+	Draggable,
+	Droppable,
+	type DropResult,
+} from "@hello-pangea/dnd";
 import { createServerSideHelpers } from "@trpc/react-query/server";
 import {
 	Ban,
@@ -436,6 +442,7 @@ const EnvironmentPage = (
 	const [serviceActionLoading, setServiceActionLoading] = useState<
 		Record<string, string>
 	>({});
+	const [serviceOrder, setServiceOrder] = useState<string[]>([]);
 
 	const handleSelectAll = () => {
 		if (selectedServices.length === filteredServices.length) {
@@ -935,8 +942,25 @@ const EnvironmentPage = (
 					(selectedServerId === "dokploy-server" && !service.serverId) ||
 					service.serverId === selectedServerId),
 		);
+
+		if (serviceOrder.length > 0) {
+			const orderMap = new Map(serviceOrder.map((id, index) => [id, index]));
+			return [...filtered].sort((a, b) => {
+				const orderA = orderMap.get(a.id) ?? Number.POSITIVE_INFINITY;
+				const orderB = orderMap.get(b.id) ?? Number.POSITIVE_INFINITY;
+				return orderA - orderB;
+			});
+		}
+
 		return sortServices(filtered);
-	}, [applications, searchQuery, selectedTypes, selectedServerId, sortBy]);
+	}, [
+		applications,
+		searchQuery,
+		selectedTypes,
+		selectedServerId,
+		sortBy,
+		serviceOrder,
+	]);
 
 	const selectedServicesWithRunningStatus = useMemo(() => {
 		return filteredServices.filter(
@@ -946,6 +970,16 @@ const EnvironmentPage = (
 	}, [filteredServices, selectedServices]);
 
 	const hasServiceActions = (_service: Services) => true;
+
+	const onDragEnd = (result: DropResult) => {
+		if (!result.destination) return;
+
+		const items = Array.from(filteredServices);
+		const [reorderedItem] = items.splice(result.source.index, 1);
+		items.splice(result.destination.index, 0, reorderedItem);
+
+		setServiceOrder(items.map((s) => s.id));
+	};
 
 	if (isLoading) {
 		return (
@@ -1557,283 +1591,361 @@ const EnvironmentPage = (
 										</div>
 									) : (
 										<div className="flex w-full flex-col gap-4">
-											<div className="gap-5 pb-10 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-												{filteredServices?.map((service) => (
-													<ContextMenu key={service.id}>
-														<ContextMenuTrigger asChild>
-															<Link
-																href={`/dashboard/project/${projectId}/environment/${environmentId}/services/${service.type}/${service.id}`}
-																className="block"
-															>
-																<Card className="flex flex-col group relative cursor-pointer bg-transparent transition-colors hover:bg-border">
-																	{service.serverId && (
-																		<div className="absolute -left-1 -top-2">
-																			<ServerIcon className="size-4 text-muted-foreground" />
-																		</div>
-																	)}
-																	<div className="absolute -right-1 -top-2">
-																		<StatusTooltip status={service.status} />
-																	</div>
-
-																	<div
-																		className={cn(
-																			"absolute -left-3 -bottom-3 size-9 translate-y-1 rounded-full p-0 transition-all duration-200 z-10 bg-background border",
-																			selectedServices.includes(service.id)
-																				? "opacity-100 translate-y-0"
-																				: "opacity-0 group-hover:translate-y-0 group-hover:opacity-100",
-																		)}
-																		onClick={(e) =>
-																			handleServiceSelect(service.id, e)
-																		}
-																	>
-																		<div className="h-full w-full flex items-center justify-center">
-																			<Checkbox
-																				checked={selectedServices.includes(
-																					service.id,
-																				)}
-																				className="data-[state=checked]:bg-primary"
-																			/>
-																		</div>
-																	</div>
-
-																	<CardHeader>
-																		<CardTitle className="flex items-center justify-between">
-																			<div className="flex flex-row items-center gap-2 justify-between w-full">
-																				<div className="flex flex-col gap-2">
-																					<span className="text-base flex items-center gap-2 font-medium leading-none flex-wrap">
-																						{service.name}
-																					</span>
-																					{service.description && (
-																						<span className="text-sm font-medium text-muted-foreground">
-																							{service.description}
-																						</span>
-																					)}
-																				</div>
-
-																				<span className="text-sm font-medium text-muted-foreground self-start">
-																					{service.type === "postgres" && (
-																						<PostgresqlIcon className="h-7 w-7" />
-																					)}
-																					{service.type === "redis" && (
-																						<RedisIcon className="h-7 w-7" />
-																					)}
-																					{service.type === "mariadb" && (
-																						<MariadbIcon className="h-7 w-7" />
-																					)}
-																					{service.type === "mongo" && (
-																						<MongodbIcon className="h-7 w-7" />
-																					)}
-																					{service.type === "mysql" && (
-																						<MysqlIcon className="h-7 w-7" />
-																					)}
-																					{service.type === "application" && (
-																						<GlobeIcon className="h-6 w-6" />
-																					)}
-																					{service.type === "compose" && (
-																						<CircuitBoard className="h-6 w-6" />
-																					)}
-																					{service.type === "libsql" && (
-																						<LibsqlIcon className="h-6 w-6" />
-																					)}
-																				</span>
-																			</div>
-																		</CardTitle>
-																	</CardHeader>
-																	<CardFooter className="mt-auto">
-																		<div className="space-y-1 text-sm w-full">
-																			{service.serverName && (
-																				<div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-																					<ServerIcon className="size-3" />
-																					<span className="truncate">
-																						{service.serverName}
-																					</span>
-																				</div>
+											<DragDropContext onDragEnd={onDragEnd}>
+												<Droppable droppableId="services">
+													{(provided) => (
+														<div
+															{...provided.droppableProps}
+															ref={provided.innerRef}
+															className="gap-5 pb-10 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
+														>
+															{filteredServices.map((service, index) => (
+																<Draggable
+																	key={service.id}
+																	draggableId={service.id}
+																	index={index}
+																>
+																	{(provided, snapshot) => (
+																		<div
+																			ref={provided.innerRef}
+																			{...provided.draggableProps}
+																			{...provided.dragHandleProps}
+																			className={cn(
+																				"h-full",
+																				snapshot.isDragging && "z-50",
 																			)}
-																			<DateTooltip date={service.createdAt}>
-																				Created
-																			</DateTooltip>
-																		</div>
-																	</CardFooter>
-																</Card>
-															</Link>
-														</ContextMenuTrigger>
-														{hasServiceActions(service) && (
-															<ContextMenuContent>
-																<ContextMenuLabel>
-																	{service.name}
-																</ContextMenuLabel>
-																<ContextMenuSeparator />
-																<DialogAction
-																	title={`Start ${service.name}`}
-																	description={`Are you sure you want to start ${service.name}?`}
-																	type="default"
-																	onClick={() =>
-																		handleSingleServiceAction(service, "start")
-																	}
-																>
-																	<ContextMenuItem inset>
-																		<CheckCircle2 className="mr-2 h-4 w-4" />
-																		Start
-																	</ContextMenuItem>
-																</DialogAction>
-																<DialogAction
-																	title={`Deploy ${service.name}`}
-																	description={`Are you sure you want to deploy ${service.name}? This will redeploy/restart the service.`}
-																	type="default"
-																	onClick={() =>
-																		handleSingleServiceAction(service, "deploy")
-																	}
-																>
-																	<ContextMenuItem inset>
-																		<Play className="mr-2 h-4 w-4" />
-																		Deploy
-																	</ContextMenuItem>
-																</DialogAction>
-																<DialogAction
-																	title={`Stop ${service.name}`}
-																	description={`Are you sure you want to stop ${service.name}?`}
-																	type="destructive"
-																	onClick={() =>
-																		handleSingleServiceAction(service, "stop")
-																	}
-																>
-																	<ContextMenuItem
-																		inset
-																		className="text-destructive focus:text-destructive"
-																	>
-																		<Ban className="mr-2 h-4 w-4" />
-																		Stop
-																	</ContextMenuItem>
-																</DialogAction>
-																{permissions?.service.delete && (
-																	<>
-																		<ContextMenuSeparator />
-																		{service.type === "compose" ? (
-																			<Dialog
-																				open={
-																					composeDeleteDialogServiceId ===
-																					service.id
-																				}
-																				onOpenChange={(open) => {
-																					setComposeDeleteDialogServiceId(
-																						open ? service.id : null,
-																					);
-																					if (!open) {
-																						setSingleDeleteVolumes(false);
-																					}
-																				}}
-																			>
-																				<ContextMenuItem
-																					inset
-																					className="text-destructive focus:text-destructive"
-																					onSelect={(e) => {
-																						e.preventDefault();
-																						setComposeDeleteDialogServiceId(
-																							service.id,
-																						);
-																					}}
-																				>
-																					<Trash2 className="mr-2 h-4 w-4" />
-																					Delete
-																				</ContextMenuItem>
-																				<DialogContent>
-																					<DialogHeader>
-																						<DialogTitle>
-																							Delete {service.name}
-																						</DialogTitle>
-																						<DialogDescription>
-																							Are you sure you want to delete{" "}
-																							{service.name}? This action cannot
-																							be undone.
-																						</DialogDescription>
-																					</DialogHeader>
-																					<div className="space-y-4">
-																						<div className="flex items-center space-x-2">
-																							<Checkbox
-																								id={`delete-volumes-${service.id}`}
-																								checked={singleDeleteVolumes}
-																								onCheckedChange={(checked) =>
-																									setSingleDeleteVolumes(
-																										checked === true,
+																		>
+																			<ContextMenu>
+																				<ContextMenuTrigger asChild>
+																					<Link
+																						href={`/dashboard/project/${projectId}/environment/${environmentId}/services/${service.type}/${service.id}`}
+																						className="block h-full"
+																					>
+																						<Card className="flex flex-col group relative cursor-pointer bg-card/30 backdrop-blur-xl transition-colors h-full hover:bg-border">
+																							{service.serverId && (
+																								<div className="absolute -left-1 -top-2">
+																									<ServerIcon className="size-4 text-muted-foreground" />
+																								</div>
+																							)}
+																							<div className="absolute -right-1 -top-2">
+																								<StatusTooltip
+																									status={service.status}
+																								/>
+																							</div>
+
+																							<div
+																								className={cn(
+																									"absolute -left-3 -bottom-3 size-9 translate-y-1 rounded-full p-0 transition-all duration-200 z-10 bg-background border",
+																									selectedServices.includes(
+																										service.id,
+																									)
+																										? "opacity-100 translate-y-0"
+																										: "opacity-0 group-hover:translate-y-0 group-hover:opacity-100",
+																								)}
+																								onClick={(e) =>
+																									handleServiceSelect(
+																										service.id,
+																										e,
 																									)
 																								}
-																							/>
-																							<label
-																								htmlFor={`delete-volumes-${service.id}`}
-																								className="text-sm font-medium"
 																							>
-																								Delete volumes associated with
-																								this service
-																							</label>
-																						</div>
-																					</div>
-																					<DialogFooter>
-																						<Button
-																							variant="outline"
-																							onClick={() => {
-																								setComposeDeleteDialogServiceId(
-																									null,
-																								);
-																								setSingleDeleteVolumes(false);
-																							}}
-																						>
-																							Cancel
-																						</Button>
-																						<Button
-																							variant="destructive"
-																							isLoading={
-																								serviceActionLoading[
-																									service.id
-																								] === "delete"
-																							}
-																							onClick={async () => {
-																								await handleSingleServiceAction(
+																								<div className="h-full w-full flex items-center justify-center">
+																									<Checkbox
+																										checked={selectedServices.includes(
+																											service.id,
+																										)}
+																										className="data-[state=checked]:bg-primary"
+																									/>
+																								</div>
+																							</div>
+
+																							<CardHeader>
+																								<CardTitle className="flex items-center justify-between">
+																									<div className="flex flex-row items-center gap-2 justify-between w-full">
+																										<div className="flex flex-col gap-2">
+																											<span className="text-base flex items-center gap-2 font-medium leading-none flex-wrap">
+																												{service.name}
+																											</span>
+																											{service.description && (
+																												<span className="text-sm font-medium text-muted-foreground">
+																													{service.description}
+																												</span>
+																											)}
+																										</div>
+
+																										<span className="text-sm font-medium text-muted-foreground self-start">
+																											{service.type ===
+																												"postgres" && (
+																												<PostgresqlIcon className="h-7 w-7" />
+																											)}
+																											{service.type ===
+																												"redis" && (
+																												<RedisIcon className="h-7 w-7" />
+																											)}
+																											{service.type ===
+																												"mariadb" && (
+																												<MariadbIcon className="h-7 w-7" />
+																											)}
+																											{service.type ===
+																												"mongo" && (
+																												<MongodbIcon className="h-7 w-7" />
+																											)}
+																											{service.type ===
+																												"mysql" && (
+																												<MysqlIcon className="h-7 w-7" />
+																											)}
+																											{service.type ===
+																												"application" && (
+																												<GlobeIcon className="h-6 w-6" />
+																											)}
+																											{service.type ===
+																												"compose" && (
+																												<CircuitBoard className="h-6 w-6" />
+																											)}
+																											{service.type ===
+																												"libsql" && (
+																												<LibsqlIcon className="h-6 w-6" />
+																											)}
+																										</span>
+																									</div>
+																								</CardTitle>
+																							</CardHeader>
+
+																							<CardFooter className="mt-auto">
+																								<div className="space-y-1 text-sm w-full">
+																									{service.serverName && (
+																										<div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+																											<ServerIcon className="size-3" />
+																											<span className="truncate">
+																												{service.serverName}
+																											</span>
+																										</div>
+																									)}
+																									<DateTooltip
+																										date={service.createdAt}
+																									>
+																										Created
+																									</DateTooltip>
+																								</div>
+																							</CardFooter>
+																						</Card>
+																					</Link>
+																				</ContextMenuTrigger>
+
+																				{hasServiceActions(service) && (
+																					<ContextMenuContent>
+																						<ContextMenuLabel>
+																							{service.name}
+																						</ContextMenuLabel>
+																						<ContextMenuSeparator />
+																						<DialogAction
+																							title={`Start ${service.name}`}
+																							description={`Are you sure you want to start ${service.name}?`}
+																							type="default"
+																							onClick={() =>
+																								handleSingleServiceAction(
 																									service,
-																									"delete",
-																									{
-																										deleteVolumes:
-																											singleDeleteVolumes,
-																									},
-																								);
-																								setComposeDeleteDialogServiceId(
-																									null,
-																								);
-																								setSingleDeleteVolumes(false);
-																							}}
+																									"start",
+																								)
+																							}
 																						>
-																							Delete Service
-																						</Button>
-																					</DialogFooter>
-																				</DialogContent>
-																			</Dialog>
-																		) : (
-																			<DialogAction
-																				title={`Delete ${service.name}`}
-																				description={`Are you sure you want to delete ${service.name}? This action cannot be undone.`}
-																				type="destructive"
-																				onClick={() =>
-																					handleSingleServiceAction(
-																						service,
-																						"delete",
-																					)
-																				}
-																			>
-																				<ContextMenuItem
-																					inset
-																					className="text-destructive focus:text-destructive"
-																				>
-																					<Trash2 className="mr-2 h-4 w-4" />
-																					Delete
-																				</ContextMenuItem>
-																			</DialogAction>
-																		)}
-																	</>
-																)}
-															</ContextMenuContent>
-														)}
-													</ContextMenu>
-												))}
-											</div>
+																							<ContextMenuItem inset>
+																								<CheckCircle2 className="mr-2 h-4 w-4" />
+																								Start
+																							</ContextMenuItem>
+																						</DialogAction>
+
+																						<DialogAction
+																							title={`Deploy ${service.name}`}
+																							description={`Are you sure you want to deploy ${service.name}? This will redeploy/restart the service.`}
+																							type="default"
+																							onClick={() =>
+																								handleSingleServiceAction(
+																									service,
+																									"deploy",
+																								)
+																							}
+																						>
+																							<ContextMenuItem inset>
+																								<Play className="mr-2 h-4 w-4" />
+																								Deploy
+																							</ContextMenuItem>
+																						</DialogAction>
+
+																						<DialogAction
+																							title={`Stop ${service.name}`}
+																							description={`Are you sure you want to stop ${service.name}?`}
+																							type="destructive"
+																							onClick={() =>
+																								handleSingleServiceAction(
+																									service,
+																									"stop",
+																								)
+																							}
+																						>
+																							<ContextMenuItem
+																								inset
+																								className="text-destructive focus:text-destructive"
+																							>
+																								<Ban className="mr-2 h-4 w-4" />
+																								Stop
+																							</ContextMenuItem>
+																						</DialogAction>
+
+																						{permissions?.service.delete && (
+																							<>
+																								<ContextMenuSeparator />
+																								{service.type === "compose" ? (
+																									<Dialog
+																										open={
+																											composeDeleteDialogServiceId ===
+																											service.id
+																										}
+																										onOpenChange={(open) => {
+																											setComposeDeleteDialogServiceId(
+																												open
+																													? service.id
+																													: null,
+																											);
+																											if (!open)
+																												setSingleDeleteVolumes(
+																													false,
+																												);
+																										}}
+																									>
+																										<ContextMenuItem
+																											inset
+																											className="text-destructive focus:text-destructive"
+																											onSelect={(e) => {
+																												e.preventDefault();
+																												setComposeDeleteDialogServiceId(
+																													service.id,
+																												);
+																											}}
+																										>
+																											<Trash2 className="mr-2 h-4 w-4" />
+																											Delete
+																										</ContextMenuItem>
+
+																										<DialogContent>
+																											<DialogHeader>
+																												<DialogTitle>
+																													Delete {service.name}
+																												</DialogTitle>
+																												<DialogDescription>
+																													Are you sure you want
+																													to delete{" "}
+																													{service.name}? This
+																													action cannot be
+																													undone.
+																												</DialogDescription>
+																											</DialogHeader>
+
+																											<div className="space-y-4">
+																												<div className="flex items-center space-x-2">
+																													<Checkbox
+																														id={`delete-volumes-${service.id}`}
+																														checked={
+																															singleDeleteVolumes
+																														}
+																														onCheckedChange={(
+																															checked,
+																														) =>
+																															setSingleDeleteVolumes(
+																																checked ===
+																																	true,
+																															)
+																														}
+																													/>
+																													<label
+																														htmlFor={`delete-volumes-${service.id}`}
+																														className="text-sm font-medium"
+																													>
+																														Delete volumes
+																														associated with this
+																														service
+																													</label>
+																												</div>
+																											</div>
+
+																											<DialogFooter>
+																												<Button
+																													variant="outline"
+																													onClick={() => {
+																														setComposeDeleteDialogServiceId(
+																															null,
+																														);
+																														setSingleDeleteVolumes(
+																															false,
+																														);
+																													}}
+																												>
+																													Cancel
+																												</Button>
+																												<Button
+																													variant="destructive"
+																													isLoading={
+																														serviceActionLoading[
+																															service.id
+																														] === "delete"
+																													}
+																													onClick={async () => {
+																														await handleSingleServiceAction(
+																															service,
+																															"delete",
+																															{
+																																deleteVolumes:
+																																	singleDeleteVolumes,
+																															},
+																														);
+																														setComposeDeleteDialogServiceId(
+																															null,
+																														);
+																														setSingleDeleteVolumes(
+																															false,
+																														);
+																													}}
+																												>
+																													Delete Service
+																												</Button>
+																											</DialogFooter>
+																										</DialogContent>
+																									</Dialog>
+																								) : (
+																									<DialogAction
+																										title={`Delete ${service.name}`}
+																										description={`Are you sure you want to delete ${service.name}? This action cannot be undone.`}
+																										type="destructive"
+																										onClick={() =>
+																											handleSingleServiceAction(
+																												service,
+																												"delete",
+																											)
+																										}
+																									>
+																										<ContextMenuItem
+																											inset
+																											className="text-destructive focus:text-destructive"
+																										>
+																											<Trash2 className="mr-2 h-4 w-4" />
+																											Delete
+																										</ContextMenuItem>
+																									</DialogAction>
+																								)}
+																							</>
+																						)}
+																					</ContextMenuContent>
+																				)}
+																			</ContextMenu>
+																		</div>
+																	)}
+																</Draggable>
+															))}
+															{provided.placeholder}
+														</div>
+													)}
+												</Droppable>
+											</DragDropContext>
 										</div>
 									)}
 								</div>
