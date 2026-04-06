@@ -48,6 +48,50 @@ interface Props {
 	onSuccess?: () => unknown | Promise<unknown>;
 }
 
+import { nanoid } from "nanoid";
+
+// If you are using Drizzle, you can infer the type like this:
+// export type Server = typeof server.$inferSelect;
+
+export const MOCK_SERVER = {
+	serverId: "blahblahblah",
+	name: "If this is here it means no servers are eligible",
+	description: "Fallback server used for local testing or empty states",
+	ipAddress: "127.0.0.1",
+	port: 22,
+	username: "mock-user",
+	appName: "mock-app-development",
+	enableDockerCleanup: false,
+	createdAt: new Date().toISOString(),
+	organizationId: "mock-org-id",
+	serverStatus: "active" as const, // Cast as const to match literal types
+	serverType: "deploy" as const,
+	command: "echo 'Hello from Mock'",
+	sshKeyId: "mock-ssh-key-id",
+	metricsConfig: {
+		server: {
+			type: "Remote" as const,
+			refreshRate: 60,
+			port: 4500,
+			token: "mock-token",
+			urlCallback: "",
+			cronJob: "",
+			retentionDays: 2,
+			thresholds: {
+				cpu: 80,
+				memory: 80,
+			},
+		},
+		containers: {
+			refreshRate: 60,
+			services: {
+				include: ["*"],
+				exclude: [],
+			},
+		},
+	},
+};
+
 export const MigrateService = ({
 	serviceId,
 	serviceName,

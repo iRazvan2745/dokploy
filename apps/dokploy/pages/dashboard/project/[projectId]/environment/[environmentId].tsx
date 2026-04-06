@@ -1563,7 +1563,6 @@ const EnvironmentPage = (
 														<ContextMenuTrigger asChild>
 															<Link
 																href={`/dashboard/project/${projectId}/environment/${environmentId}/services/${service.type}/${service.id}`}
-																className="block"
 															>
 																<Card className="flex flex-col group relative cursor-pointer bg-transparent transition-colors hover:bg-border">
 																	{service.serverId && (
