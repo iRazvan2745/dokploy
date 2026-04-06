@@ -40,6 +40,14 @@ type MigratableServiceType =
 	| "redis"
 	| "libsql";
 
+interface Server {
+	serverId: string;
+	name: string;
+	serverType: string;
+	serverStatus: string;
+	sshKeyId: string | null;
+}
+
 interface Props {
 	serviceId: string;
 	serviceName: string;
@@ -103,7 +111,7 @@ export const MigrateService = ({
 
 	const targetServers =
 		servers?.filter(
-			(server) =>
+			(server): server is Server =>
 				server.serverId !== currentServerId &&
 				server.serverType === "deploy" &&
 				server.serverStatus === "active" &&
