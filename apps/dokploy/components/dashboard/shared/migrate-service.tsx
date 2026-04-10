@@ -210,8 +210,9 @@ export const MigrateService = ({
 					</DialogHeader>
 
 					<AlertBlock type="warning">
-						The service must already be stopped. Volumes are copied with rsync
-						over SSH.
+						The service must already be stopped. Docker volumes, including
+						compose-defined named volumes, are copied with rsync over SSH. Bind
+						mounts are not supported.
 					</AlertBlock>
 
 					<div className="grid gap-2">

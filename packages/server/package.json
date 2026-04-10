@@ -1,77 +1,32 @@
 {
   "name": "@dokploy/server",
   "version": "1.0.0",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs.js"
+    },
     "./db": {
-      "import": "./src/db/index.ts",
+      "import": "./dist/db/index.js",
       "require": "./dist/db/index.cjs.js"
     },
-    "./db/schema": {
-      "import": "./src/db/schema/index.ts",
+    "./*": {
+      "import": "./dist/*",
+      "require": "./dist/*.cjs"
+    },
+    "./dist": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs.js"
+    },
+    "./dist/db": {
+      "import": "./dist/db/index.js",
+      "require": "./dist/db/index.cjs.js"
+    },
+    "./dist/db/schema": {
+      "import": "./dist/db/schema/index.js",
       "require": "./dist/db/schema/index.cjs.js"
-    },
-    "./db/schema/*": {
-      "import": "./src/db/schema/*.ts",
-      "require": "./dist/db/schema/*.cjs.js"
-    },
-    "./setup/*": {
-      "import": "./src/setup/*.ts",
-      "require": "./dist/setup/index.cjs.js"
-    },
-    "./constants": {
-      "import": "./src/constants/index.ts",
-      "require": "./dist/constants.cjs.js"
-    },
-    "./services/*": {
-      "import": "./src/services/*.ts",
-      "require": "./dist/services/*.cjs.js"
-    },
-    "./services/proprietary/*": {
-      "import": "./src/services/proprietary/*.ts",
-      "require": "./dist/services/proprietary/*.cjs.js"
-    },
-    "./utils/*": {
-      "import": "./src/utils/*.ts",
-      "require": "./dist/utils/*.cjs.js"
-    },
-    "./utils/traefik/*": {
-      "import": "./src/utils/traefik/*.ts",
-      "require": "./dist/utils/traefik/*.cjs.js"
-    },
-    "./utils/docker/*": {
-      "import": "./src/utils/docker/*.ts",
-      "require": "./dist/utils/docker/*.cjs.js"
-    },
-    "./utils/builders": {
-      "import": "./src/utils/builders/index.ts",
-      "require": "./dist/utils/builders/index.cjs.js"
-    },
-    "./utils/builders/*": {
-      "import": "./src/utils/builders/*.ts",
-      "require": "./dist/utils/builders/*.cjs.js"
-    },
-    "./monitoring/*": {
-      "import": "./src/monitoring/*.ts",
-      "require": "./dist/monitoring/*.cjs.js"
-    },
-    "./emails/*": {
-      "import": "./src/emails/*.ts",
-      "require": "./dist/emails/*.cjs.js"
-    },
-    "./emails/emails/*": {
-      "import": "./src/emails/emails/*.tsx",
-      "require": "./dist/emails/emails/*.cjs.js"
-    },
-    "./templates": {
-      "import": "./src/templates/index.ts",
-      "require": "./dist/templates/index.cjs.js"
-    },
-    "./templates/*": {
-      "import": "./src/templates/*.ts",
-      "require": "./dist/templates/*.cjs.js"
     }
   },
   "scripts": {

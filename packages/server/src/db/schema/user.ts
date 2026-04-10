@@ -62,9 +62,6 @@ export const user = pgTable("user", {
 	isValidEnterpriseLicense: boolean("isValidEnterpriseLicense")
 		.notNull()
 		.default(false),
-	stripeCustomerId: text("stripeCustomerId"),
-	stripeSubscriptionId: text("stripeSubscriptionId"),
-	serversQuantity: integer("serversQuantity").notNull().default(0),
 	isEnterpriseCloud: boolean("isEnterpriseCloud").notNull().default(false),
 	trustedOrigins: text("trustedOrigins").array(),
 	bookmarkedTemplates: text("bookmarkedTemplates")

@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@dokploy/server/services/application", () => ({
@@ -58,6 +57,10 @@ vi.mock("@dokploy/server/utils/process/execAsync", () => ({
 	execAsyncRemote: vi.fn(),
 }));
 
+vi.mock("@dokploy/server/utils/docker/domain", () => ({
+	addDomainToCompose: vi.fn(),
+}));
+
 vi.mock("@dokploy/server/utils/servers/remote-docker", () => ({
 	getRemoteDocker: vi.fn(async () => ({
 		getService: vi.fn(() => ({
@@ -67,7 +70,9 @@ vi.mock("@dokploy/server/utils/servers/remote-docker", () => ({
 }));
 
 import * as applicationService from "@dokploy/server/services/application";
+import * as composeService from "@dokploy/server/services/compose";
 import * as serverService from "@dokploy/server/services/server";
+import * as composeDomain from "@dokploy/server/utils/docker/domain";
 import * as execProcess from "@dokploy/server/utils/process/execAsync";
 import { getRemoteDocker } from "@dokploy/server/utils/servers/remote-docker";
 import {
@@ -123,6 +128,18 @@ const createServer = (serverId: string, overrides: Record<string, unknown> = {})
 	...overrides,
 });
 
+const createCompose = (overrides: Record<string, unknown> = {}) => ({
+	composeId: "compose-1",
+	appName: "compose-one",
+	name: "Compose One",
+	serverId: "source-server",
+	composeStatus: "idle",
+	composeType: "docker-compose",
+	mounts: [],
+	domains: [],
+	...overrides,
+});
+
 describe("service migration preflight", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -140,6 +157,7 @@ describe("service migration preflight", () => {
 			stdout: "",
 			stderr: "",
 		} as any);
+		vi.mocked(composeDomain.addDomainToCompose).mockResolvedValue(null);
 		vi.mocked(getRemoteDocker).mockResolvedValue({
 			getService: vi.fn(() => ({
 				inspect: vi.fn().mockRejectedValue(new Error("not found")),
@@ -250,11 +268,129 @@ describe("service migration preflight", () => {
 
 		await expect(
 			buildMigrationLookup("application", "app-1", "target-server"),
-		).rejects.toBeInstanceOf(TRPCError);
-		await expect(
-			buildMigrationLookup("application", "app-1", "target-server"),
 		).rejects.toMatchObject({
 			message: "Target server already has a Docker service named app-one",
+		});
+	});
+
+	it("uses compose manifest volumes when dokploy mounts are empty", async () => {
+		vi.mocked(composeService.findComposeById).mockResolvedValue(
+			createCompose() as any,
+		);
+		vi.mocked(composeDomain.addDomainToCompose).mockResolvedValue({
+			services: {
+				db: {
+					image: "postgres:16",
+					volumes: [
+						"db-data:/var/lib/postgresql/data",
+						{
+							type: "volume",
+							source: "db-cache",
+							target: "/cache",
+						},
+					],
+				},
+			},
+			volumes: {
+				"db-data": {},
+				"db-cache": {},
+			},
+		} as any);
+
+		const lookup = await buildMigrationLookup(
+			"compose",
+			"compose-1",
+			"target-server",
+		);
+
+		expect(lookup.volumeNames).toEqual([
+			"compose-one_db-data",
+			"compose-one_db-cache",
+		]);
+	});
+
+	it("rejects compose bind mounts declared in the compose file", async () => {
+		vi.mocked(composeService.findComposeById).mockResolvedValue(
+			createCompose() as any,
+		);
+		vi.mocked(composeDomain.addDomainToCompose).mockResolvedValue({
+			services: {
+				app: {
+					image: "nginx:latest",
+					volumes: ["./data:/data"],
+				},
+			},
+		} as any);
+
+		await expect(
+			buildMigrationLookup("compose", "compose-1", "target-server"),
+		).rejects.toMatchObject({
+			message:
+				"Compose migration does not support bind mounts declared in the compose file",
+		});
+	});
+
+	it("resolves anonymous docker-compose volumes from stopped containers", async () => {
+		vi.mocked(composeService.findComposeById).mockResolvedValue(
+			createCompose() as any,
+		);
+		vi.mocked(composeDomain.addDomainToCompose).mockResolvedValue({
+			services: {
+				app: {
+					image: "node:20",
+					volumes: ["/data"],
+				},
+			},
+		} as any);
+		vi.mocked(execProcess.execAsyncRemote).mockImplementation(
+			async (serverId: string | null, command: string) => {
+				if (command.includes("command -v rsync")) {
+					return { stdout: "", stderr: "" } as any;
+				}
+
+				if (
+					serverId === "source-server" &&
+					command.includes("com.docker.compose.project='compose-one'")
+				) {
+					return {
+						stdout: "compose-one-app-data-volume\n",
+						stderr: "",
+					} as any;
+				}
+
+				return { stdout: "", stderr: "" } as any;
+			},
+		);
+
+		const lookup = await buildMigrationLookup(
+			"compose",
+			"compose-1",
+			"target-server",
+		);
+
+		expect(lookup.volumeNames).toEqual(["compose-one-app-data-volume"]);
+	});
+
+	it("rejects anonymous stack volumes declared in the compose file", async () => {
+		vi.mocked(composeService.findComposeById).mockResolvedValue(
+			createCompose({
+				composeType: "stack",
+			}) as any,
+		);
+		vi.mocked(composeDomain.addDomainToCompose).mockResolvedValue({
+			services: {
+				app: {
+					image: "node:20",
+					volumes: ["/data"],
+				},
+			},
+		} as any);
+
+		await expect(
+			buildMigrationLookup("compose", "compose-1", "target-server"),
+		).rejects.toMatchObject({
+			message:
+				"Compose stack migration does not support anonymous Docker volumes declared in the compose file",
 		});
 	});
 });

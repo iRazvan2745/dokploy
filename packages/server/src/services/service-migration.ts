@@ -18,6 +18,11 @@ import { deployRedis, findRedisById, updateRedisById } from "./redis";
 import { findServerById } from "./server";
 import { deployApplication } from "./application";
 import { deployCompose } from "./compose";
+import { addDomainToCompose } from "../utils/docker/domain";
+import type {
+	ComposeSpecification,
+	DefinitionsVolume,
+} from "../utils/docker/types";
 import { execAsync, execAsyncRemote } from "../utils/process/execAsync";
 import { getRemoteDocker } from "../utils/servers/remote-docker";
 
@@ -53,6 +58,8 @@ type ComposeLike = BaseService & {
 	composeType: "docker-compose" | "stack";
 };
 
+type ComposeEntity = Awaited<ReturnType<typeof findComposeById>>;
+
 type DatabaseLike = BaseService & {
 	applicationStatus: string;
 };
@@ -63,7 +70,7 @@ type ServiceEntity =
 	  } & ApplicationLike)
 	| ({
 			type: "compose";
-	  } & ComposeLike)
+	  } & ComposeEntity)
 	| ({
 			type:
 				| "postgres"
@@ -88,6 +95,7 @@ type ServiceLookup = {
 	codePath: string | null;
 	status: string;
 	composeType?: "docker-compose" | "stack";
+	volumeNames: string[];
 };
 
 const MIGRATION_SUPPORTED_TYPES: MigratableServiceType[] = [
@@ -114,6 +122,11 @@ export const hasFileMounts = (mounts: Mount[]) =>
 
 export const getVolumeMounts = (mounts: Mount[]) =>
 	mounts.filter((mount) => mount.type === "volume" && mount.volumeName);
+
+const getMountVolumeNames = (mounts: Mount[]) =>
+	getVolumeMounts(mounts)
+		.map((mount) => mount.volumeName)
+		.filter((volumeName): volumeName is string => Boolean(volumeName));
 
 export const shouldCopyApplicationDropCode = (
 	serviceType: MigratableServiceType,
@@ -312,6 +325,304 @@ const getServiceStatus = (service: ServiceEntity) =>
 		? service.composeStatus
 		: service.applicationStatus;
 
+type ComposeVolumeReference =
+	| {
+			type: "named";
+			source: string;
+			volumeName: string;
+			serviceName: string;
+			targetPath?: string;
+	  }
+	| {
+			type: "anonymous";
+			serviceName: string;
+			targetPath: string;
+			volumeName: string;
+	  };
+
+type ParsedComposeShortVolume =
+	| {
+			type: "bind";
+			source: string;
+			targetPath: string;
+	  }
+	| {
+			type: "named";
+			source: string;
+			targetPath: string;
+	  }
+	| {
+			type: "anonymous";
+			targetPath: string;
+	  }
+	| null;
+
+const isComposeBindSource = (source: string) =>
+	source.startsWith(".") ||
+	source.startsWith("/") ||
+	source.startsWith("~") ||
+	source.startsWith("$");
+
+const isComposeVolumeMode = (value: string) =>
+	value
+		.split(",")
+		.every((segment) =>
+			["ro", "rw", "z", "Z", "cached", "delegated", "consistent"].includes(
+				segment,
+			),
+		);
+
+const parseComposeShortVolume = (volume: string): ParsedComposeShortVolume => {
+	const parts = volume.split(":");
+
+	if (parts.length === 1) {
+		return {
+			type: "anonymous" as const,
+			targetPath: parts[0] ?? "",
+		};
+	}
+
+	const [firstPart, secondPart] = parts;
+
+	if (
+		parts.length === 2 &&
+		firstPart &&
+		secondPart &&
+		isComposeBindSource(firstPart) &&
+		isComposeVolumeMode(secondPart)
+	) {
+		return {
+			type: "anonymous" as const,
+			targetPath: firstPart,
+		};
+	}
+
+	const source = firstPart;
+	const targetPath = secondPart;
+
+	if (!source || !targetPath) {
+		return null;
+	}
+
+	if (isComposeBindSource(source)) {
+		return {
+			type: "bind" as const,
+			source,
+			targetPath,
+		};
+	}
+
+	return {
+		type: "named" as const,
+		source,
+		targetPath,
+	};
+};
+
+const resolveComposeNamedVolume = (
+	appName: string,
+	source: string,
+	rootVolume?: DefinitionsVolume,
+) => {
+	const externalName =
+		typeof rootVolume?.external === "object" ? rootVolume.external.name : undefined;
+	if (externalName) {
+		return externalName;
+	}
+
+	if (rootVolume?.external === true) {
+		return rootVolume.name || source;
+	}
+
+	if (rootVolume?.name) {
+		return rootVolume.name;
+	}
+
+	return `${appName}_${source}`;
+};
+
+const listComposeAnonymousVolumeRefs = (
+	appName: string,
+	composeType: ComposeLike["composeType"],
+	composeSpec: ComposeSpecification,
+) => {
+	const volumeRefs: ComposeVolumeReference[] = [];
+	const serviceEntries = Object.entries(composeSpec.services || {});
+
+	for (const [serviceName, serviceConfig] of serviceEntries) {
+		for (const rawVolume of serviceConfig.volumes || []) {
+			if (typeof rawVolume === "string") {
+				const parsedVolume = parseComposeShortVolume(rawVolume);
+
+				if (!parsedVolume) {
+					continue;
+				}
+
+				if (parsedVolume.type === "bind") {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message:
+							"Compose migration does not support bind mounts declared in the compose file",
+					});
+				}
+
+				if (parsedVolume.type === "anonymous") {
+					if (composeType === "stack") {
+						throw new TRPCError({
+							code: "BAD_REQUEST",
+							message:
+								"Compose stack migration does not support anonymous Docker volumes declared in the compose file",
+						});
+					}
+
+					volumeRefs.push({
+						type: "anonymous",
+						serviceName,
+						targetPath: parsedVolume.targetPath,
+						volumeName: "",
+					});
+					continue;
+				}
+
+				volumeRefs.push({
+					type: "named",
+					serviceName,
+					source: parsedVolume.source,
+					targetPath: parsedVolume.targetPath,
+					volumeName: resolveComposeNamedVolume(
+						appName,
+						parsedVolume.source,
+						composeSpec.volumes?.[parsedVolume.source],
+					),
+				});
+				continue;
+			}
+
+			if (rawVolume.type === "bind") {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						"Compose migration does not support bind mounts declared in the compose file",
+				});
+			}
+
+			if (rawVolume.type !== "volume") {
+				continue;
+			}
+
+			if (!rawVolume.source) {
+				if (!rawVolume.target) {
+					continue;
+				}
+
+				if (composeType === "stack") {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message:
+							"Compose stack migration does not support anonymous Docker volumes declared in the compose file",
+					});
+				}
+
+				volumeRefs.push({
+					type: "anonymous",
+					serviceName,
+					targetPath: rawVolume.target,
+					volumeName: "",
+				});
+				continue;
+			}
+
+			volumeRefs.push({
+				type: "named",
+				serviceName,
+				source: rawVolume.source,
+				targetPath: rawVolume.target,
+				volumeName: resolveComposeNamedVolume(
+					appName,
+					rawVolume.source,
+					composeSpec.volumes?.[rawVolume.source],
+				),
+			});
+		}
+	}
+
+	return volumeRefs;
+};
+
+const inspectAnonymousComposeVolumeName = async (
+	serverId: string | null,
+	appName: string,
+	serviceName: string,
+	targetPath: string,
+) => {
+	const command = [
+		"set -e",
+		`CONTAINER_ID=$(docker ps -aq --filter label=com.docker.compose.project=${shellEscape(appName)} --filter label=com.docker.compose.service=${shellEscape(serviceName)} | head -n 1)`,
+		'if [ -z "$CONTAINER_ID" ]; then exit 1; fi',
+		`docker inspect --format '{{range .Mounts}}{{println .Type "|" .Destination "|" .Name}}{{end}}' "$CONTAINER_ID" | awk -F'|' -v target=${shellEscape(targetPath)} '$1 == "volume" && $2 == target { print $3; exit }'`,
+	]
+		.map(bashLine)
+		.join("");
+
+	let volumeName = "";
+
+	try {
+		const runner = serverId
+			? await execAsyncRemote(serverId, command)
+			: await execAsync(command);
+		volumeName = runner.stdout.trim();
+	} catch {
+		volumeName = "";
+	}
+
+	if (!volumeName) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: `Could not resolve anonymous compose volume for service ${serviceName} at ${targetPath}`,
+		});
+	}
+
+	return volumeName;
+};
+
+const resolveComposeVolumeNames = async (compose: ComposeEntity) => {
+	const composeSpec = await addDomainToCompose(compose, compose.domains);
+
+	if (!composeSpec) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Compose file could not be loaded for migration",
+		});
+	}
+
+	const volumeRefs = listComposeAnonymousVolumeRefs(
+		compose.appName,
+		compose.composeType,
+		composeSpec,
+	);
+
+	if (volumeRefs.length === 0) {
+		return [];
+	}
+
+	const resolvedVolumeNames = await Promise.all(
+		volumeRefs.map(async (volumeRef) => {
+			if (volumeRef.type === "named") {
+				return volumeRef.volumeName;
+			}
+
+			return inspectAnonymousComposeVolumeName(
+				compose.serverId ?? null,
+				compose.appName,
+				volumeRef.serviceName,
+				volumeRef.targetPath,
+			);
+		}),
+	);
+
+	return [...new Set(resolvedVolumeNames)];
+};
+
 export const buildMigrationLookup = async (
 	serviceType: MigratableServiceType,
 	serviceId: string,
@@ -345,6 +656,11 @@ export const buildMigrationLookup = async (
 			message: "Services with bind mounts are not supported for migration",
 		});
 	}
+
+	const volumeNames =
+		service.type === "compose"
+			? await resolveComposeVolumeNames(service)
+			: getMountVolumeNames(service.mounts);
 
 	const sourceServer = sourceServerId
 		? await ensureRemoteDeployServer(sourceServerId, "Source server")
@@ -387,6 +703,7 @@ export const buildMigrationLookup = async (
 				: null,
 		status,
 		composeType: service.type === "compose" ? service.composeType : undefined,
+		volumeNames,
 	} satisfies ServiceLookup;
 };
 
@@ -613,19 +930,14 @@ const syncDirectoryBetweenServers = async ({
 };
 
 const migrateVolumes = async (lookup: ServiceLookup, onData?: (data: string) => void) => {
-	const volumeMounts = getVolumeMounts(lookup.mounts);
-
-	if (volumeMounts.length === 0) {
+	if (lookup.volumeNames.length === 0) {
 		emitSection(onData, "No volume mounts detected, skipping volume copy.");
 		return;
 	}
 
-	emitSection(onData, "Volume migration plan:", `${volumeMounts.length} volume(s)`);
+	emitSection(onData, "Volume migration plan:", `${lookup.volumeNames.length} volume(s)`);
 
-	for (const mount of volumeMounts) {
-		const volumeName = mount.volumeName;
-		if (!volumeName) continue;
-
+	for (const volumeName of lookup.volumeNames) {
 		emitSection(onData, "Migrating volume", volumeName);
 		const [sourcePath, targetPath] = await Promise.all([
 			getSourceVolumeMountpoint(lookup.sourceServerId, volumeName),
@@ -853,7 +1165,7 @@ export const migrateServiceBetweenServers = async ({
 	);
 	emitLog(onData, `Service status: ${lookup.status}`);
 	emitLog(onData, `Total mounts: ${lookup.mounts.length}`);
-	emitLog(onData, `Volume mounts: ${getVolumeMounts(lookup.mounts).length}`);
+	emitLog(onData, `Volume mounts: ${lookup.volumeNames.length}`);
 	emitLog(
 		onData,
 		`File mounts present: ${lookup.filesPath ? "yes" : "no"}`,
