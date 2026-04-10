@@ -104,11 +104,18 @@ const createApplication = (overrides: Record<string, unknown> = {}) => ({
 const createServer = (serverId: string, overrides: Record<string, unknown> = {}) => ({
 	serverId,
 	name: serverId,
+	description: null,
 	serverType: "deploy",
 	serverStatus: "active",
 	ipAddress: `${serverId}.example.com`,
 	port: 22,
 	username: "root",
+	appName: `${serverId}-app`,
+	enableDockerCleanup: false,
+	command: "",
+	createdAt: new Date().toISOString(),
+	organizationId: "org-1",
+	metricsConfig: null,
 	sshKeyId: `${serverId}-ssh`,
 	sshKey: {
 		privateKey: "PRIVATE KEY",
@@ -122,8 +129,8 @@ describe("service migration preflight", () => {
 		vi.mocked(applicationService.findApplicationById).mockResolvedValue(
 			createApplication() as any,
 		);
-		vi.mocked(serverService.findServerById).mockImplementation(async (serverId: string) =>
-			createServer(serverId),
+		vi.mocked(serverService.findServerById).mockImplementation(
+			async (serverId: string) => createServer(serverId) as any,
 		);
 		vi.mocked(execProcess.execAsync).mockResolvedValue({
 			stdout: "",
@@ -216,7 +223,7 @@ describe("service migration preflight", () => {
 
 	it("rejects missing rsync on either server", async () => {
 		vi.mocked(execProcess.execAsyncRemote).mockImplementation(
-			async (serverId: string, command: string) => {
+			async (serverId: string | null, command: string) => {
 				if (
 					command.includes("command -v rsync") &&
 					serverId === "source-server"

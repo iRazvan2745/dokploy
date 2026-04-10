@@ -1,6 +1,9 @@
-import type { ApplicationNested, Domain, Redirect } from "@dokploy/server";
-import { createRouterConfig } from "@dokploy/server";
+import { createRouterConfig } from "@dokploy/server/utils/traefik/domain";
 import { expect, test } from "vitest";
+
+type ApplicationNested = Parameters<typeof createRouterConfig>[0];
+type Domain = Parameters<typeof createRouterConfig>[1];
+type Redirect = ApplicationNested["redirects"][number];
 
 const baseApp: ApplicationNested = {
 	railpackVersion: "0.15.4",
@@ -95,7 +98,6 @@ const baseApp: ApplicationNested = {
 	dropBuildPath: null,
 	enabled: null,
 	env: null,
-	icon: null,
 	healthCheckSwarm: null,
 	labelsSwarm: null,
 	memoryLimit: null,

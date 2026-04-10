@@ -33,6 +33,38 @@
       "import": "./src/services/proprietary/*.ts",
       "require": "./dist/services/proprietary/*.cjs.js"
     },
+    "./utils/*": {
+      "import": "./src/utils/*.ts",
+      "require": "./dist/utils/*.cjs.js"
+    },
+    "./utils/traefik/*": {
+      "import": "./src/utils/traefik/*.ts",
+      "require": "./dist/utils/traefik/*.cjs.js"
+    },
+    "./utils/docker/*": {
+      "import": "./src/utils/docker/*.ts",
+      "require": "./dist/utils/docker/*.cjs.js"
+    },
+    "./utils/builders": {
+      "import": "./src/utils/builders/index.ts",
+      "require": "./dist/utils/builders/index.cjs.js"
+    },
+    "./utils/builders/*": {
+      "import": "./src/utils/builders/*.ts",
+      "require": "./dist/utils/builders/*.cjs.js"
+    },
+    "./monitoring/*": {
+      "import": "./src/monitoring/*.ts",
+      "require": "./dist/monitoring/*.cjs.js"
+    },
+    "./emails/*": {
+      "import": "./src/emails/*.ts",
+      "require": "./dist/emails/*.cjs.js"
+    },
+    "./emails/emails/*": {
+      "import": "./src/emails/emails/*.tsx",
+      "require": "./dist/emails/emails/*.cjs.js"
+    },
     "./templates": {
       "import": "./src/templates/index.ts",
       "require": "./dist/templates/index.cjs.js"

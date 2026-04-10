@@ -17,9 +17,11 @@ export const domain = z
 			.min(1, { message: "Port must be at least 1" })
 			.max(65535, { message: "Port must be 65535 or below" })
 			.optional(),
+		customEntrypoint: z.string().optional().nullable(),
 		https: z.boolean().optional(),
 		certificateType: z.enum(["letsencrypt", "none", "custom"]).optional(),
 		customCertResolver: z.string(),
+		middlewares: z.array(z.string()).optional().nullable(),
 	})
 	.superRefine((input, ctx) => {
 		if (input.https && !input.certificateType) {
@@ -79,9 +81,11 @@ export const domainCompose = z
 			.min(1, { message: "Port must be at least 1" })
 			.max(65535, { message: "Port must be 65535 or below" })
 			.optional(),
+		customEntrypoint: z.string().optional().nullable(),
 		https: z.boolean().optional(),
 		certificateType: z.enum(["letsencrypt", "none", "custom"]).optional(),
 		customCertResolver: z.string(),
+		middlewares: z.array(z.string()).optional().nullable(),
 		serviceName: z.string().min(1, { message: "Service name is required" }),
 	})
 	.superRefine((input, ctx) => {

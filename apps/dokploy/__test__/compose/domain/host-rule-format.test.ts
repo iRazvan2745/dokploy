@@ -1,7 +1,8 @@
-import type { Domain } from "@dokploy/server";
-import { createDomainLabels } from "@dokploy/server";
+import { createDomainLabels } from "@dokploy/server/utils/docker/domain";
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
+
+type Domain = Parameters<typeof createDomainLabels>[1];
 
 /**
  * Regression tests for Traefik Host rule label format.
@@ -20,6 +21,7 @@ describe("Host rule format regression tests", () => {
 		port: 8080,
 		https: false,
 		uniqueConfigKey: 1,
+		customEntrypoint: null,
 		customCertResolver: null,
 		certificateType: "none",
 		applicationId: "",
@@ -32,6 +34,7 @@ describe("Host rule format regression tests", () => {
 		previewDeploymentId: "",
 		internalPath: "/",
 		stripPath: false,
+		middlewares: null,
 	};
 
 	describe("Host rule format validation", () => {

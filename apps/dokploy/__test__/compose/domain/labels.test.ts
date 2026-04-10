@@ -1,6 +1,7 @@
-import type { Domain } from "@dokploy/server";
-import { createDomainLabels } from "@dokploy/server";
+import { createDomainLabels } from "@dokploy/server/utils/docker/domain";
 import { describe, expect, it } from "vitest";
+
+type Domain = Parameters<typeof createDomainLabels>[1];
 
 describe("createDomainLabels", () => {
 	const appName = "test-app";
@@ -9,6 +10,7 @@ describe("createDomainLabels", () => {
 		port: 8080,
 		https: false,
 		uniqueConfigKey: 1,
+		customEntrypoint: null,
 		customCertResolver: null,
 		certificateType: "none",
 		applicationId: "",
@@ -21,6 +23,7 @@ describe("createDomainLabels", () => {
 		previewDeploymentId: "",
 		internalPath: "/",
 		stripPath: false,
+		middlewares: null,
 	};
 
 	it("should create basic labels for web entrypoint", async () => {

@@ -110,13 +110,13 @@ export const MigrateService = ({
 	const { data: servers } = api.server.all.useQuery();
 
 	const targetServers =
-		servers?.filter(
-			(server): server is Server =>
+		(servers?.filter(
+			(server) =>
 				server.serverId !== currentServerId &&
 				server.serverType === "deploy" &&
 				server.serverStatus === "active" &&
 				!!server.sshKeyId,
-		) ?? [];
+		) as Server[] | undefined) ?? [];
 
 	const otherServersCount =
 		servers?.filter((server) => server.serverId !== currentServerId).length ??

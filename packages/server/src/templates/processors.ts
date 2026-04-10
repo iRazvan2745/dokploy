@@ -136,28 +136,36 @@ export function processValue(
 				return generateJwt({ length: Number.parseInt(params[0], 10) });
 			}
 			let [secret, payload] = params;
-			if (typeof payload === "string" && variables[payload]) {
-				payload = variables[payload];
+			const resolvedSecret =
+				typeof secret === "string" && secret.length > 0
+					? (variables[secret] ?? secret)
+					: undefined;
+			let payloadValue: unknown = payload;
+			if (
+				typeof payloadValue === "string" &&
+				variables[payloadValue]
+			) {
+				payloadValue = variables[payloadValue];
 			}
 			if (
-				typeof payload === "string" &&
-				payload.trimStart().startsWith("{") &&
-				payload.trimEnd().endsWith("}")
+				typeof payloadValue === "string" &&
+				payloadValue.trimStart().startsWith("{") &&
+				payloadValue.trimEnd().endsWith("}")
 			) {
 				try {
-					payload = JSON.parse(payload);
+					payloadValue = JSON.parse(payloadValue);
 				} catch (e) {
 					// If payload is not a valid JSON, invalid it
-					payload = undefined;
+					payloadValue = undefined;
 					console.error("Invalid JWT payload", e);
 				}
 			}
-			if (typeof payload !== "object") {
-				payload = undefined;
+			if (typeof payloadValue !== "object") {
+				payloadValue = undefined;
 			}
 			return generateJwt({
-				secret: secret ? variables[secret] || secret : undefined,
-				payload: payload as any,
+				secret: resolvedSecret,
+				payload: payloadValue as any,
 			});
 		}
 
